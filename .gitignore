@@ -50,3 +50,13 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Code composer files
+.settings/
+Debug/
+targetConfigs/
+.ccsproject
+.cproject
+.project
+lnk_msp430fr5994.cmd
+.launches/
