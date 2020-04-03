@@ -3,6 +3,7 @@
 // Includes
 
 #include <stdio.h>
+#include <stdint.h>
 #include "driverlib.h"
 
 //-----------------------------------------------------------------------------
@@ -10,6 +11,24 @@
 
 //-----------------------------------------------------------------------------
 // Globals
+
+// AES stuff
+#define AES_ENCRYPTION_DATA_SIZE (1024) // Size of data to be encrypted/decrypted (must be multiple of 16)
+#pragma PERSISTENT(cipherKey)
+uint8_t cipherKey[32] =
+{
+    0xDE, 0xAD, 0xBE, 0xEF,
+    0xBA, 0xDC, 0x0F, 0xEE,
+    0xFE, 0xED, 0xBE, 0xEF,
+    0xBE, 0xEF, 0xBA, 0xBE,
+    0xBA, 0xDF, 0x00, 0x0D,
+    0xFE, 0xED, 0xC0, 0xDE,
+    0xD0, 0xD0, 0xCA, 0xCA,
+    0xCA, 0xFE, 0xBA, 0xBE,
+};
+uint8_t dataAESencrypted[AES_ENCRYPTION_DATA_SIZE]; // Encrypted data
+//uint8_t dataAESdecrypted[AES_ENCRYPTION_DATA_SIZE]; // Decrypted data
+char message[AES_ENCRYPTION_DATA_SIZE] = {0};
 
 //-----------------------------------------------------------------------------
 // Function prototypes
@@ -20,7 +39,8 @@ void Init_UART(void);
 void Init_RTC(void);
 void Init_Timer(void);
 void Init_AES(uint8_t * cypherKey);
-void enterLPM35();
+void gpioSignalPinLow(void);
+void gpioSignalPinHigh(void);
 
 //-----------------------------------------------------------------------------
 // Functions
@@ -48,12 +68,34 @@ void gpioSignalPinHigh(void)
     GPIO_setOutputHighOnPin(GPIO_PORT_P8, GPIO_PIN1);
 }
 
+inline void doAes(void)
+{
+    unsigned int i;
+    // Copy the string we want to encrypt to our buffer
+    const char stringToEncrypt[] = "I am a meat popsicle.           ";
+    memcpy(message, stringToEncrypt, sizeof(stringToEncrypt));
+
+    // Do stuff
+    gpioSignalPinHigh();
+    for (i = 0; i < AES_ENCRYPTION_DATA_SIZE; i += 16)
+    {
+        // Encrypt data with preloaded cipher key
+         AES256_encryptData(AES256_BASE, (uint8_t*)(message) + i, dataAESencrypted + i);
+    }
+    gpioSignalPinLow();
+}
+
 void main(void)
 {
+    uint16_t startTicks;
+    uint16_t currentTicks;
+
     // Peripheral initialization
     Init_GPIO();
     Init_Clock();
+    Init_Timer();
     Init_UART();
+    Init_AES(cipherKey);
 
     // Enable global interrupts
     __enable_interrupt();
@@ -61,7 +103,16 @@ void main(void)
     // Main loop
     for (;;)
     {
-        __no_operation();
+        // __no_operation();
+        doAes();
+
+        // Wait 1ms
+        startTicks = Timer_A_getCounterValue(TIMER_A0_BASE);
+        do
+        {
+            currentTicks = Timer_A_getCounterValue(TIMER_A0_BASE);
+        }
+        while ((currentTicks - startTicks) < 1000);
     }
 }
 
@@ -103,8 +154,8 @@ void Init_GPIO()
     // P1.0 and P1.1 are the LEDs
     GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0|GPIO_PIN1);
 
-    // P8.1 is out timing pin
-    GPIO_setOutputHighOnPin(GPIO_PORT_P8, GPIO_PIN1);
+    // P8.1 is out timing pin, active high
+    GPIO_setOutputLowOnPin(GPIO_PORT_P8, GPIO_PIN1);
 
     // Disable the GPIO power-on default high-impedance mode
     // to activate previously configured port settings
@@ -118,16 +169,36 @@ void Init_Clock()
 {
     // Set DCO frequency to 16 MHz
     CS_setDCOFreq(CS_DCORSEL_1, CS_DCOFSEL_4);
-    //Set external clock frequency to 32.768 KHz
+    // Set external clock frequency to 32.768 KHz
     CS_setExternalClockSource(32768, 0);
-    //Set ACLK=LFXT
+    // Set ACLK=LFXT
     CS_initClockSignal(CS_ACLK, CS_LFXTCLK_SELECT, CS_CLOCK_DIVIDER_1);
-    // Set SMCLK = DCO with frequency divider of 1
-    CS_initClockSignal(CS_SMCLK, CS_DCOCLK_SELECT, CS_CLOCK_DIVIDER_1);
+    // Set SMCLK = DCO with frequency divider of 16
+    CS_initClockSignal(CS_SMCLK, CS_DCOCLK_SELECT, CS_CLOCK_DIVIDER_16);
     // Set MCLK = DCO with frequency divider of 1
     CS_initClockSignal(CS_MCLK, CS_DCOCLK_SELECT, CS_CLOCK_DIVIDER_1);
     //Start XT1 with no time out
     CS_turnOnLFXT(CS_LFXT_DRIVE_3);
+}
+
+/**
+ * Timer initialization
+ * @note       This will setup timer A to have a 1us tick
+ */
+void Init_Timer(void)
+{
+    // Start timer
+    Timer_A_initUpModeParam param = {0};
+    param.clockSource = TIMER_A_CLOCKSOURCE_SMCLK; // Use SMCLK (=DCO/16 = 16 MHz /16 = 1 MHz) 
+    param.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_1;
+    param.timerPeriod = 0xFFFF; // Use entire 16 bit counter
+    param.timerInterruptEnable_TAIE = TIMER_A_TAIE_INTERRUPT_DISABLE;
+    param.captureCompareInterruptEnable_CCR0_CCIE = TIMER_A_CCIE_CCR0_INTERRUPT_DISABLE;
+    param.timerClear = TIMER_A_DO_CLEAR;
+    param.startTimer = true;
+    Timer_A_initUpMode(TIMER_A0_BASE, &param);
+
+    __delay_cycles(10000); // Delay wait for clock to settle
 }
 
 /*
@@ -158,6 +229,17 @@ void Init_UART()
     EUSCI_A_UART_enableInterrupt(EUSCI_A0_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
 }
 
+/**
+ * @brief      Setup the AES peripheral
+ *
+ * @param      cypherKey  The 32 byte cypher key to use for AES encryption/decrytion
+ */
+void Init_AES(uint8_t * cypherKey)
+{
+    // Load a cipher key to module
+    AES256_setCipherKey(AES256_BASE, cypherKey, AES256_KEYLENGTH_256BIT);
+}
+
 //-----------------------------------------------------------------------------
 // ISRs
 
@@ -168,5 +250,5 @@ void Init_UART()
 #pragma vector=PORT1_VECTOR
 __interrupt void PORT1_ISR(void)
 {
-	//
+    //
 }
