@@ -46,7 +46,7 @@ volatile uint32_t bytesProcessed;
 
 void Init_GPIO(void);
 void Init_Clock(void);
-void Init_UART(void);
+bool Init_UART(void);
 void Init_RTC(void);
 void Init_Timer(void);
 void Init_AES(uint8_t * cypherKey);
@@ -149,6 +149,7 @@ void main(void)
 {
     uint16_t startTicks;
     uint16_t currentTicks;
+    bool success = true;
 
     // Reset our runtime variables
     powerLoss = false;
@@ -160,11 +161,32 @@ void main(void)
     Init_GPIO();
     Init_Clock();
     Init_Timer();
-    Init_UART();
     Init_AES(cipherKey);
+    success = Init_UART();
+
+    if (!success)
+    {
+        // Turn on red LED for failure
+        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0);
+        for (;;)
+        {
+            __no_operation();
+        }
+    }
 
     // Enable global interrupts
     __enable_interrupt();
+
+    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, 'H');
+    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, 'i');
+    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, '!');
+    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, ' ');
+    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, ':');
+    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, ')');
+    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, '\r');
+    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, '\n');
+
+    while(EUSCI_A_UART_queryStatusFlags(EUSCI_A0_BASE, EUSCI_A_UART_BUSY));
 
     // Main loop
     for (;;)
@@ -196,8 +218,8 @@ void main(void)
         }
     }
 
-    // P1.0 and P1.1 are the LEDs
-    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0|GPIO_PIN1);
+    // Turn on green LED for completion
+    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN1);
 
     for (;;)
     {
@@ -234,8 +256,7 @@ void Init_GPIO()
     GPIO_setAsOutputPin(GPIO_PORT_PJ, GPIO_PIN0|GPIO_PIN1|GPIO_PIN2|GPIO_PIN3|GPIO_PIN4|GPIO_PIN5|GPIO_PIN6|GPIO_PIN7|GPIO_PIN8|GPIO_PIN9|GPIO_PIN10|GPIO_PIN11|GPIO_PIN12|GPIO_PIN13|GPIO_PIN14|GPIO_PIN15);
 
     // Configure P2.0 - UCA0TXD and P2.1 - UCA0RXD
-    GPIO_setOutputLowOnPin(GPIO_PORT_P2, GPIO_PIN0);
-    GPIO_setAsOutputPin(GPIO_PORT_P2, GPIO_PIN0);
+    GPIO_setAsPeripheralModuleFunctionOutputPin(GPIO_PORT_P2, GPIO_PIN0, GPIO_SECONDARY_MODULE_FUNCTION);
     GPIO_setAsPeripheralModuleFunctionInputPin(GPIO_PORT_P2, GPIO_PIN1, GPIO_SECONDARY_MODULE_FUNCTION);
 
     // Set PJ.4 and PJ.5 as Primary Module Function Input, LFXT.
@@ -260,8 +281,8 @@ void Init_Clock()
     CS_setExternalClockSource(32768, 0);
     // Set ACLK=LFXT
     CS_initClockSignal(CS_ACLK, CS_LFXTCLK_SELECT, CS_CLOCK_DIVIDER_1);
-    // Set SMCLK = DCO with frequency divider of 16
-    CS_initClockSignal(CS_SMCLK, CS_DCOCLK_SELECT, CS_CLOCK_DIVIDER_16);
+    // Set SMCLK = DCO with frequency divider of 1
+    CS_initClockSignal(CS_SMCLK, CS_DCOCLK_SELECT, CS_CLOCK_DIVIDER_1);
     // Set MCLK = DCO with frequency divider of 1
     CS_initClockSignal(CS_MCLK, CS_DCOCLK_SELECT, CS_CLOCK_DIVIDER_1);
     //Start XT1 with no time out
@@ -276,8 +297,8 @@ void Init_Timer(void)
 {
     // Start timer
     Timer_A_initUpModeParam param = {0};
-    param.clockSource = TIMER_A_CLOCKSOURCE_SMCLK; // Use SMCLK (=DCO/16 = 16 MHz /16 = 1 MHz) 
-    param.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_1;
+    param.clockSource = TIMER_A_CLOCKSOURCE_SMCLK; // Use SMCLK (= DCO = (16 MHz / 16) = 1 MHz) 
+    param.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_16;
     param.timerPeriod = 0xFFFF; // Use entire 16 bit counter
     param.timerInterruptEnable_TAIE = TIMER_A_TAIE_INTERRUPT_DISABLE;
     param.captureCompareInterruptEnable_CCR0_CCIE = TIMER_A_CCIE_CCR0_INTERRUPT_DISABLE;
@@ -291,29 +312,37 @@ void Init_Timer(void)
 /*
  * UART Communication Initialization
  */
-void Init_UART()
+bool Init_UART()
 {
     // Configure UART
     EUSCI_A_UART_initParam param = {0};
     param.selectClockSource = EUSCI_A_UART_CLOCKSOURCE_SMCLK;
-    param.clockPrescalar = 52;
-    param.firstModReg = 1;
-    param.secondModReg = 0x49;
+    // BRCLK = SMCLK = 16 MHz
+    // Values obtained from Table 30-5 in MSP430FR59xx User's Guide (SLAU367O)
+    // Baud rate: 230400
+    // UCOS16 = 1, UCBRx = 4, UCBRFx = 5, UCBRSx = 0x55
+    // Baud rate: 115200
+    // UCOS16 = 1, UCBRx = 8, UCBRFx = 10, UCBRSx = 0xF7
+    param.clockPrescalar = 8;   // UCBRx
+    param.firstModReg = 10;     // UCBRFx
+    param.secondModReg = 0xF7;  // UCBRSx
     param.parity = EUSCI_A_UART_NO_PARITY;
     param.msborLsbFirst = EUSCI_A_UART_LSB_FIRST;
     param.numberofStopBits = EUSCI_A_UART_ONE_STOP_BIT;
     param.uartMode = EUSCI_A_UART_MODE;
-    param.overSampling = EUSCI_A_UART_OVERSAMPLING_BAUDRATE_GENERATION;
+    param.overSampling = EUSCI_A_UART_OVERSAMPLING_BAUDRATE_GENERATION; // UCOS16
 
     if(STATUS_FAIL == EUSCI_A_UART_init(EUSCI_A0_BASE, &param))
     {
-        return;
+        return false;
     }
 
     EUSCI_A_UART_enable(EUSCI_A0_BASE);
-    EUSCI_A_UART_clearInterrupt(EUSCI_A0_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
+    // EUSCI_A_UART_clearInterrupt(EUSCI_A0_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
     // Enable USCI_A0 RX interrupt
-    EUSCI_A_UART_enableInterrupt(EUSCI_A0_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
+    // EUSCI_A_UART_enableInterrupt(EUSCI_A0_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
+
+    return true;
 }
 
 /**
