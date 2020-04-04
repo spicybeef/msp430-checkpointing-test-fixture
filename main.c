@@ -2,15 +2,25 @@
 //-----------------------------------------------------------------------------
 // Includes
 
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stddef.h>
+#include <file.h>
 #include "driverlib.h"
+#include "uartlib.h"
 
 //-----------------------------------------------------------------------------
 // Defines
 
 //-----------------------------------------------------------------------------
 // Globals
+
+// stdio buffers
+#define IO_BUFF_SIZE (128)
+char stdinBuff[IO_BUFF_SIZE];
+char stdoutBuff[IO_BUFF_SIZE];
 
 #define AES_ENCRYPTION_DATA_SIZE (16) // Size of data to be encrypted/decrypted (must be multiple of 16)
 #pragma PERSISTENT(cipherKey)
@@ -44,12 +54,16 @@ volatile uint32_t bytesProcessed;
 //-----------------------------------------------------------------------------
 // Function prototypes
 
+// Initialization
 void Init_GPIO(void);
 void Init_Clock(void);
 bool Init_UART(void);
 void Init_RTC(void);
 void Init_Timer(void);
 void Init_AES(uint8_t * cypherKey);
+
+// Checkpointing fixture
+void executeWorkloadPolicy(void);
 void markWorkEnd(void);
 void markWorkStart(void);
 
@@ -136,6 +150,8 @@ void doAes(void)
 
 }
 
+
+
 /**
  * @brief      This executes the policy that we're current employing to scale
  *             our workloads. This will modify the current chunk size.
@@ -149,6 +165,7 @@ void main(void)
 {
     uint16_t startTicks;
     uint16_t currentTicks;
+    uint16_t i;
     bool success = true;
 
     // Reset our runtime variables
@@ -174,19 +191,42 @@ void main(void)
         }
     }
 
+    /* Add the UART device to the system. */
+    add_device("UART", _MSA, UartLib_DeviceOpen,
+               UartLib_DeviceClose, UartLib_DeviceRead,
+               UartLib_DeviceWrite, UartLib_DeviceLSeek,
+               UartLib_DeviceUnlink, UartLib_DeviceRename);
+
+    /* Open UART0 for writing to stdout and set buffer */
+    freopen("UART:0", "w", stdout);
+    setvbuf(stdout, stdinBuff, _IOLBF, 128);
+
+    /* Open UART0 for reading from stdin and set buffer */
+    freopen("UART:0", "r", stdin);
+    setvbuf(stdin, stdoutBuff, _IOLBF, 128);
+
     // Enable global interrupts
     __enable_interrupt();
 
-    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, 'H');
-    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, 'i');
-    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, '!');
-    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, ' ');
-    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, ':');
-    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, ')');
-    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, '\r');
-    EUSCI_A_UART_transmitData(EUSCI_A0_BASE, '\n');
+    char c;
 
-    while(EUSCI_A_UART_queryStatusFlags(EUSCI_A0_BASE, EUSCI_A_UART_BUSY));
+    printf(" ▄████▄    █████▒\r\n");
+    printf("▒██▀ ▀█  ▓██   ▒ \r\n");
+    printf("▒▓█    ▄ ▒████ ░ \r\n");
+    printf("▒▓▓▄ ▄██▒░▓█▒  ░ \r\n");
+    printf("▒ ▓███▀ ░░▒█░    \r\n");
+    printf("░ ░▒ ▒  ░ ▒ ░    \r\n");
+    printf("  ░  ▒    ░      \r\n");
+    printf("░         ░ ░    \r\n");
+    printf("░ ░              \r\n");
+    printf("░                \r\n");
+    printf("\r\n");
+    printf("?>");
+    fflush(stdout);
+    scanf("%c", &c);
+    fflush(stdin);
+    printf("\r\nYou entered %c\r\n", c);
+    fflush(stdout);
 
     // Main loop
     for (;;)
@@ -338,6 +378,8 @@ bool Init_UART()
     }
 
     EUSCI_A_UART_enable(EUSCI_A0_BASE);
+
+    // No interrupts
     // EUSCI_A_UART_clearInterrupt(EUSCI_A0_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
     // Enable USCI_A0 RX interrupt
     // EUSCI_A_UART_enableInterrupt(EUSCI_A0_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
