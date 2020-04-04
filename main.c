@@ -199,11 +199,11 @@ void main(void)
 
     /* Open UART0 for writing to stdout and set buffer */
     freopen("UART:0", "w", stdout);
-    setvbuf(stdout, stdinBuff, _IOLBF, 128);
+    setvbuf(stdout, stdinBuff, _IOLBF, IO_BUFF_SIZE);
 
     /* Open UART0 for reading from stdin and set buffer */
     freopen("UART:0", "r", stdin);
-    setvbuf(stdin, stdoutBuff, _IOLBF, 128);
+    setvbuf(stdin, stdoutBuff, _IOLBF, IO_BUFF_SIZE);
 
     // Enable global interrupts
     __enable_interrupt();
@@ -222,12 +222,9 @@ void main(void)
     printf("░                \r\n");
     printf("\r\n");
     printf("?>");
-    fflush(stdout);
     scanf("%c", &c);
-    fflush(stdin);
     printf("\r\nYou entered %c\r\n", c);
-    fflush(stdout);
-
+    
     // Main loop
     for (;;)
     {
