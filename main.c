@@ -12,8 +12,7 @@
 //-----------------------------------------------------------------------------
 // Globals
 
-// AES stuff
-#define AES_ENCRYPTION_DATA_SIZE (1024) // Size of data to be encrypted/decrypted (must be multiple of 16)
+#define AES_ENCRYPTION_DATA_SIZE (16) // Size of data to be encrypted/decrypted (must be multiple of 16)
 #pragma PERSISTENT(cipherKey)
 uint8_t cipherKey[32] =
 {
@@ -27,8 +26,20 @@ uint8_t cipherKey[32] =
     0xCA, 0xFE, 0xBA, 0xBE,
 };
 uint8_t dataAESencrypted[AES_ENCRYPTION_DATA_SIZE]; // Encrypted data
-//uint8_t dataAESdecrypted[AES_ENCRYPTION_DATA_SIZE]; // Decrypted data
+//uint8_t dataAESdecrypted[AES_ENCRYPTION_DATA_SIZE]; // Decrypted data, not used right now
 char message[AES_ENCRYPTION_DATA_SIZE] = {0};
+
+// Our power loss flag (raised by the GPIO interrupt)
+volatile bool powerLoss;
+// Our active work flag (raised while we're busy doing work)
+volatile bool currentlyWorking;
+// Our current chunk size
+volatile uint16_t currentChunkSize;
+// Total bytes processed by our workload
+volatile uint32_t bytesProcessed;
+
+// Our total workload size (3MB will yield about 30s of work)
+#define TOTAL_WORKLOAD_SIZE_BYTES (3145728)
 
 //-----------------------------------------------------------------------------
 // Function prototypes
@@ -39,12 +50,18 @@ void Init_UART(void);
 void Init_RTC(void);
 void Init_Timer(void);
 void Init_AES(uint8_t * cypherKey);
-void gpioSignalPinLow(void);
-void gpioSignalPinHigh(void);
+void markWorkEnd(void);
+void markWorkStart(void);
 
 //-----------------------------------------------------------------------------
 // Functions
 
+/**
+ * @brief      System pre-init, run before main()
+ *
+ * @return     If segment (BSS) initialization should be performed or not.
+ *             Return: 0 to omit initialization 1 to run initialization
+ */
 int _system_pre_init(void)
 {
     // Stop Watchdog timer
@@ -53,42 +70,91 @@ int _system_pre_init(void)
     // Disable global interrupts
     __disable_interrupt();
 
-    // Choose if segment (BSS) initialization should be performed or not.
-    // Return: 0 to omit initialization 1 to run initialization
     return 1;
 }
 
-void gpioSignalPinLow(void)
-{
-    GPIO_setOutputLowOnPin(GPIO_PORT_P8, GPIO_PIN1);
-}
-
-void gpioSignalPinHigh(void)
+/**
+ * @brief      Mark that work has started
+ */
+void markWorkStart(void)
 {
     GPIO_setOutputHighOnPin(GPIO_PORT_P8, GPIO_PIN1);
+    currentlyWorking = true;
 }
 
-inline void doAes(void)
+/**
+ * @brief      Mark that work has ended
+ */
+void markWorkEnd(void)
 {
-    unsigned int i;
+    GPIO_setOutputLowOnPin(GPIO_PORT_P8, GPIO_PIN1);
+    currentlyWorking = false;
+}
+
+/**
+ * @brief      Perform our work.
+ */
+void doAes(void)
+{
+    uint16_t i;
     // Copy the string we want to encrypt to our buffer
     const char stringToEncrypt[] = "I am a meat popsicle.           ";
     memcpy(message, stringToEncrypt, sizeof(stringToEncrypt));
 
     // Do stuff
-    gpioSignalPinHigh();
-    for (i = 0; i < AES_ENCRYPTION_DATA_SIZE; i += 16)
+    // Signal that work is starting
+    markWorkStart();
+    for (i = 0; i < currentChunkSize; i += 16)
     {
-        // Encrypt data with preloaded cipher key
-         AES256_encryptData(AES256_BASE, (uint8_t*)(message) + i, dataAESencrypted + i);
+        // Encrypt data with preloaded cipher key. For this fixture, we will be
+        // performing work on the same message (no real work is being done, just
+        // counting how many successful chunks we've accomplished.
+        AES256_encryptData(AES256_BASE, (uint8_t*)(message), dataAESencrypted);
+        // Check if we need to abort our current chunk
+        if (powerLoss)
+        {
+            // If we raised a power-loss flag, it means that at some point during our
+            // current chunk we encountered a power-loss. This chunk is no
+            // longer valid. Break out of loop.
+            break;
+        }
     }
-    gpioSignalPinLow();
+    // Signal that work has halted
+    markWorkEnd();
+    if (!powerLoss)
+    {
+        // If we're here, the chunk successfully executed! Add to our total
+        // bytes processed accumulator.
+        bytesProcessed += currentChunkSize;
+    }
+    else
+    {
+        // Chunk failed. We won't count this as work performed and we need to
+        // modify our behaviour.
+        executeWorkloadPolicy();
+    }
+
+}
+
+/**
+ * @brief      This executes the policy that we're current employing to scale
+ *             our workloads. This will modify the current chunk size.
+ */
+void executeWorkloadPolicy()
+{
+    // No policy yet!
 }
 
 void main(void)
 {
     uint16_t startTicks;
     uint16_t currentTicks;
+
+    // Reset our runtime variables
+    powerLoss = false;
+    currentlyWorking = false;
+    currentChunkSize = 1024;
+    bytesProcessed = 0;
 
     // Peripheral initialization
     Init_GPIO();
@@ -103,16 +169,40 @@ void main(void)
     // Main loop
     for (;;)
     {
-        // __no_operation();
+        // Perform our AES workload
         doAes();
 
-        // Wait 1ms
+        // Wait 1ms, simulates work that needs to be performed in between our
+        // workloads.
         startTicks = Timer_A_getCounterValue(TIMER_A0_BASE);
         do
         {
+            // If we encounter a power-loss here, that's ok!, But reset the
+            // timer. This will also reset the power-loss flag experienced
+            // during our workload.
+            if (powerLoss)
+            {
+                powerLoss = false;
+                startTicks = Timer_A_getCounterValue(TIMER_A0_BASE);
+            }
             currentTicks = Timer_A_getCounterValue(TIMER_A0_BASE);
         }
         while ((currentTicks - startTicks) < 1000);
+
+        if (bytesProcessed >= TOTAL_WORKLOAD_SIZE_BYTES)
+        {
+            // We're done! Leave the workload loop
+            break;
+        }
+    }
+
+    // P1.0 and P1.1 are the LEDs
+    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0|GPIO_PIN1);
+
+    for (;;)
+    {
+        // Not just diamonds last forever...
+        __no_operation();
     }
 }
 
@@ -150,9 +240,6 @@ void Init_GPIO()
 
     // Set PJ.4 and PJ.5 as Primary Module Function Input, LFXT.
     GPIO_setAsPeripheralModuleFunctionInputPin(GPIO_PORT_PJ, GPIO_PIN4 + GPIO_PIN5, GPIO_PRIMARY_MODULE_FUNCTION);
-
-    // P1.0 and P1.1 are the LEDs
-    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0|GPIO_PIN1);
 
     // P8.1 is out timing pin, active high
     GPIO_setOutputLowOnPin(GPIO_PORT_P8, GPIO_PIN1);
