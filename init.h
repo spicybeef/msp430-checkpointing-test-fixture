@@ -28,6 +28,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// 1 MHz timer = 1 us ticks
+// We will add this many ticks to our running count during our overflow ISR
+#define TIMER_PERIOD_TICKS (0xFFFF)
+
 void Gpio_Init(void);
 void Clock_Init(void);
 void Timer_Init(void);

@@ -26,10 +26,14 @@
 #define UTILS_H
 
 #include <stdint.h>
+#include "console.h"
 
 #define MICROSECONDS_IN_SECONDS         (1000000)
 #define MICROSECONDS_IN_MILLISECONDS    (1000)
 
-extern uint32_t uptimeTicksMicroSeconds;
+extern volatile uint32_t uptimeTicksMicroseconds;
+
+uint32_t Utils_GetUptimeMicroseconds(void);
+functionResult_e Utils_DisplayUptime(unsigned int numArgs, int args[]);
 
 #endif // UTILS_H

@@ -23,16 +23,17 @@
  ******************************************************************************/
 
 #include "menus.h"
+#include "utils.h"
 
 splash_t splashScreen =
 {
     ANSI_COLOR_CYAN,                        
-    "   â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•—",
-    "  â–ˆâ–ˆâ•”â•�â•�â•�â•�â•�â•šâ•�â•�â–ˆâ–ˆâ•”â•�â•�â•�â–ˆâ–ˆâ•”â•�â•�â•�â•�â•�",
-    "  â–ˆâ–ˆâ•‘        â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•—  ",
-    "  â–ˆâ–ˆâ•‘        â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•”â•�â•�â•�  ",
-    "  â•šâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•—   â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•‘     ",
-    "   â•šâ•�â•�â•�â•�â•�â•�   â•šâ•�â•�   â•šâ•�â•�     ",
+    "   ██████╗████████╗███████╗",
+    "  ██╔════╝╚══██╔══╝██╔════╝",
+    "  ██║        ██║   █████╗  ",
+    "  ██║        ██║   ██╔══╝  ",
+    "  ╚██████╗   ██║   ██║     ",
+    "   ╚═════╝   ╚═╝   ╚═╝     ",
     "",
     ANSI_COLOR_RESET,
     "   Checkpointing Test Fixture",
@@ -45,6 +46,7 @@ extern consoleMenu_t mainMenu;
 
 consoleMenuItem_t mainMenuItems[] = 
 {
+    {{"Uptime", "Get current system uptime"},       NO_SUB_MENU,    Utils_DisplayUptime},
     {{"Setup",  "Setup checkpointing parameters"},  NO_SUB_MENU,    NO_FUNCTION_POINTER},
     {{"Current",  "Display current parameters"},    NO_SUB_MENU,    NO_FUNCTION_POINTER},
     {{"Run", "Run checkpointing workload"},         NO_SUB_MENU,    NO_FUNCTION_POINTER},

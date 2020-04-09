@@ -35,6 +35,20 @@
 #define ANSI_COLOR_RESET   "\x1b[0m"
 #define ERASE_SCREEN       "\x1b[2J"
 
+// Printf formatting
+#define PRIu8   "hu"
+#define PRId8   "hd"
+#define PRIx8   "hx"
+#define PRIu16  "hu"
+#define PRId16  "hd"
+#define PRIx16  "hx"
+#define PRIu32  "u"
+#define PRId32  "d"
+#define PRIx32  "x"
+#define PRIu64  "lu"
+#define PRId64  "ld"
+#define PRIx64  "lx"
+
 typedef enum
 {
     ERROR   =  -1,

@@ -30,14 +30,16 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/* This file was derived from UARTUtils.c and UARTEUSCIA.c from TIRTOS example files */
+
 #include <stdio.h>
 #include "driverlib.h"
 #include "uartlib.h"
 
 // stdio buffers
-#define IO_BUFF_SIZE (128)
-char stdinBuff[IO_BUFF_SIZE];
-char stdoutBuff[IO_BUFF_SIZE];
+#define IO_BUFF_SIZE (256)
+static char stdinBuff[IO_BUFF_SIZE];
+static char stdoutBuff[IO_BUFF_SIZE];
 
 static UartLib_Object_t UartLib_Object;
 
@@ -106,6 +108,7 @@ int UartLib_DeviceRename(const char *old_name, const char *new_name)
     return (-1);
 }
 
+
 int UartLib_ReadPolling(void *buffer, size_t size)
 {
     /* Save the data to be read and restore interrupts. */
@@ -140,7 +143,7 @@ int UartLib_WritePolling(const void *buffer, size_t size)
     return (UartLib_Object.writeCount);
 }
 
-inline void UartLib_WriteData()
+void UartLib_WriteData()
 {
     /* If mode is TEXT process the characters */
     if (UartLib_Object.writeDataMode == UART_DATA_TEXT)
@@ -175,7 +178,7 @@ inline void UartLib_WriteData()
     }
 }
 
-inline void UartLib_ReadData()
+void UartLib_ReadData()
 {
     uint8_t readIn;
 

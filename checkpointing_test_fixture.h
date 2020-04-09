@@ -25,9 +25,25 @@
 #ifndef CHECKPOINTING_TEST_FIXTURE_H
 #define CHECKPOINTING_TEST_FIXTURE_H
 
+#include "console.h"
+
+typedef struct
+{
+    // Power loss flag (raised by the GPIO interrupt)
+    bool powerLoss;
+    // Active work flag (raised while workload is busy doing work)
+    bool currentlyWorking;
+    // Current chunk size
+    uint16_t currentChunkSize;
+    // Total bytes processed by the workload
+    uint32_t bytesProcessed;
+} checkpointingObj_t;
+
+extern volatile checkpointingObj_t checkpointingObj;
+
 void Checkpointing_Init(void);
 void Checkpointing_ExecuteWorkloadPolicy(void);
-void Checkpointing_WorkloadLoop(void);
+functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[]);
 void Checkpointing_MarkWorkEnd(void);
 void Checkpointing_MarkWorkStart(void);
 void Checkpointing_DoAes(void);

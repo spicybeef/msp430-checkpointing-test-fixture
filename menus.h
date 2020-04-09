@@ -27,7 +27,7 @@
 
 #include "console.h"
 
-#define NUM_SPLASH_LINES (16)
+#define NUM_SPLASH_LINES (12)
 
 extern splash_t splashScreen;
 extern consoleMenu_t mainMenu;

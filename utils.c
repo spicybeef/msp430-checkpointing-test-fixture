@@ -22,6 +22,27 @@
  * SOFTWARE.
  ******************************************************************************/
 
+#include "driverlib.h"
 #include "utils.h"
+#include "console.h"
 
-uint32_t uptimeTicksMicroSeconds;
+volatile uint32_t uptimeTicksMicroseconds;
+
+uint32_t Utils_GetUptimeMicroseconds(void)
+{
+    // Since we're only incrementing system tick on counting rollovers, we need
+    // to add the current timer count to it.
+    return (uptimeTicksMicroseconds + Timer_A_getCounterValue(TIMER_A0_BASE));
+}
+
+functionResult_e Utils_DisplayUptime(unsigned int numArgs, int args[])
+{
+    uint32_t currentUptime = Utils_GetUptimeMicroseconds();
+    uint32_t seconds = (currentUptime / 1000000);
+    uint32_t minutes = (seconds / 60);
+    Console_Print("Total uptime: %ld us", currentUptime);
+    Console_Print("Total uptime: %ld s", seconds);
+    Console_Print("Total uptime: %ld m", minutes);
+
+    return SUCCESS;
+}

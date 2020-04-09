@@ -22,7 +22,23 @@
  * SOFTWARE.
  ******************************************************************************/
 
+#include "driverlib.h"
 #include "interrupts.h"
+#include "init.h"
+#include "utils.h"
+
+/*
+ * Timer0_A1 Interrupt Vector handler
+ *
+ */
+#pragma vector = TIMER0_A1_VECTOR
+__interrupt void TIMER0_A1_ISR(void)
+{
+    // Update our system tick
+    uptimeTicksMicroseconds += TIMER_PERIOD_TICKS;
+    // Clear the interrupt
+    Timer_A_clearTimerInterrupt(TIMER_A0_BASE);
+}
 
 /*
  * PORT1_VECTOR Interrupt Vector handler
@@ -33,3 +49,5 @@ __interrupt void PORT1_ISR(void)
 {
     //
 }
+
+

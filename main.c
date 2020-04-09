@@ -61,6 +61,7 @@ void main(void)
     Timer_Init();
     Aes_Init(cipherKey);
     success = Uart_Init();
+    UartLib_Init();
 
     // Initialize program variables
     Checkpointing_Init();
@@ -88,7 +89,6 @@ void main(void)
 
     // Start console interface
     Console_Main(); // Does not return
-
 
 FOREVER:
     for (;;)

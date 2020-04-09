@@ -24,31 +24,26 @@
 
 #include "driverlib.h"
 #include "checkpointing_test_fixture.h"
+#include "console.h"
+#include "utils.h"
 
 #define AES_ENCRYPTION_DATA_SIZE (16) // Size of data to be encrypted/decrypted (must be multiple of 16)
-uint8_t dataAESencrypted[AES_ENCRYPTION_DATA_SIZE]; // Encrypted data
-//uint8_t dataAESdecrypted[AES_ENCRYPTION_DATA_SIZE]; // Decrypted data, not used right now
-char message[AES_ENCRYPTION_DATA_SIZE] = {0};
-
-// Our power loss flag (raised by the GPIO interrupt)
-volatile bool powerLoss;
-// Our active work flag (raised while we're busy doing work)
-volatile bool currentlyWorking;
-// Our current chunk size
-volatile uint16_t currentChunkSize;
-// Total bytes processed by our workload
-volatile uint32_t bytesProcessed;
+static uint8_t dataAESencrypted[AES_ENCRYPTION_DATA_SIZE]; // Encrypted data
+//static uint8_t dataAESdecrypted[AES_ENCRYPTION_DATA_SIZE]; // Decrypted data, not used right now
+static char message[AES_ENCRYPTION_DATA_SIZE] = {0};
 
 // Our total workload size (3MB will yield about 30s of work)
 #define TOTAL_WORKLOAD_SIZE_BYTES (3145728)
 
+volatile checkpointingObj_t checkpointingObj;
+
 void Checkpointing_Init(void)
 {
     // Reset our runtime variables
-    powerLoss = false;
-    currentlyWorking = false;
-    currentChunkSize = 1024;
-    bytesProcessed = 0;
+    checkpointingObj.powerLoss = false;
+    checkpointingObj.currentlyWorking = false;
+    checkpointingObj.currentChunkSize = 1024;
+    checkpointingObj.bytesProcessed = 0;
 }
 
 /**
@@ -60,7 +55,7 @@ void Checkpointing_ExecuteWorkloadPolicy(void)
     // No policy yet!
 }
 
-void Checkpointing_WorkloadLoop(void)
+functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[])
 {
     uint32_t startTicks;
     uint32_t currentTicks;
@@ -73,22 +68,22 @@ void Checkpointing_WorkloadLoop(void)
 
         // Wait 1ms, simulates work that needs to be performed in between our
         // workloads.
-        startTicks = Timer_A_getCounterValue(TIMER_A0_BASE);
+        startTicks = Utils_GetUptimeMicroseconds();
         do
         {
             // If we encounter a power-loss here, that's ok!, But reset the
             // timer. This will also reset the power-loss flag experienced
             // during our workload.
-            if (powerLoss)
+            if (checkpointingObj.powerLoss)
             {
-                powerLoss = false;
-                startTicks = Timer_A_getCounterValue(TIMER_A0_BASE);
+                checkpointingObj.powerLoss = false;
+                startTicks = Utils_GetUptimeMicroseconds();
             }
-            currentTicks = Timer_A_getCounterValue(TIMER_A0_BASE);
+            currentTicks = Utils_GetUptimeMicroseconds();
         }
         while ((currentTicks - startTicks) < 1000);
 
-        if (bytesProcessed >= TOTAL_WORKLOAD_SIZE_BYTES)
+        if (checkpointingObj.bytesProcessed >= TOTAL_WORKLOAD_SIZE_BYTES)
         {
             // We're done! Leave the workload loop
             break;
@@ -97,6 +92,8 @@ void Checkpointing_WorkloadLoop(void)
 
     // Turn on green LED for completion
     GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN1);
+
+    return SUCCESS;
 }
 
 /**
@@ -105,7 +102,7 @@ void Checkpointing_WorkloadLoop(void)
 void Checkpointing_MarkWorkStart(void)
 {
     GPIO_setOutputHighOnPin(GPIO_PORT_P8, GPIO_PIN1);
-    currentlyWorking = true;
+    checkpointingObj.currentlyWorking = true;
 }
 
 /**
@@ -114,7 +111,7 @@ void Checkpointing_MarkWorkStart(void)
 void Checkpointing_MarkWorkEnd(void)
 {
     GPIO_setOutputLowOnPin(GPIO_PORT_P8, GPIO_PIN1);
-    currentlyWorking = false;
+    checkpointingObj.currentlyWorking = false;
 }
 
 /**
@@ -130,14 +127,14 @@ void Checkpointing_DoAes(void)
     // Do stuff
     // Signal that work is starting
     Checkpointing_MarkWorkStart();
-    for (i = 0; i < currentChunkSize; i += 16)
+    for (i = 0; i < checkpointingObj.currentChunkSize; i += AES_ENCRYPTION_DATA_SIZE)
     {
         // Encrypt data with preloaded cipher key. For this fixture, we will be
         // performing work on the same message (no real work is being done, just
         // counting how many successful chunks we've accomplished.
         AES256_encryptData(AES256_BASE, (uint8_t*)(message), dataAESencrypted);
         // Check if we need to abort our current chunk
-        if (powerLoss)
+        if (checkpointingObj.powerLoss)
         {
             // If we raised a power-loss flag, it means that at some point during our
             // current chunk we encountered a power-loss. This chunk is no
@@ -147,11 +144,11 @@ void Checkpointing_DoAes(void)
     }
     // Signal that work has halted
     Checkpointing_MarkWorkEnd();
-    if (!powerLoss)
+    if (!checkpointingObj.powerLoss)
     {
         // If we're here, the chunk successfully executed! Add to our total
         // bytes processed accumulator.
-        bytesProcessed += currentChunkSize;
+        checkpointingObj.bytesProcessed += checkpointingObj.currentChunkSize;
     }
     else
     {

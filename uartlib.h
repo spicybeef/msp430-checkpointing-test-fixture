@@ -92,7 +92,7 @@ typedef struct
     size_t                  writeSize;      /* Chars remaining in buffer */
     bool                    writeCR;        /* Write a return character */
 
-    /* UartLib Receive Cariables */
+    /* UartLib Receive Variables */
     void                    *readBuf;       /* Buffer data pointer */
     size_t                  readCount;      /* Number of Chars read */
     size_t                  readSize;       /* Chars remaining in buffer */

@@ -24,6 +24,7 @@
 
 #include "driverlib.h"
 #include "init.h"
+#include "utils.h"
 
 /**
  * @brief      System pre-init, run before main()
@@ -110,16 +111,18 @@ void Clock_Init(void)
  */
 void Timer_Init(void)
 {
-    // Start timer
-    Timer_A_initUpModeParam param = {0};
-    param.clockSource = TIMER_A_CLOCKSOURCE_SMCLK; // Use SMCLK (= DCO = (16 MHz / 16) = 1 MHz) 
+    // Continuous mode
+    Timer_A_initContinuousModeParam param = {0};
+    param.clockSource = TIMER_A_CLOCKSOURCE_SMCLK; // Use SMCLK (= DCO = (16 MHz / 16) = 1 MHz)
     param.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_16;
-    param.timerPeriod = 0xFFFF; // Use entire 16 bit counter
-    param.timerInterruptEnable_TAIE = TIMER_A_TAIE_INTERRUPT_DISABLE;
-    param.captureCompareInterruptEnable_CCR0_CCIE = TIMER_A_CCIE_CCR0_INTERRUPT_DISABLE;
+    param.timerInterruptEnable_TAIE = TIMER_A_TAIE_INTERRUPT_ENABLE;
     param.timerClear = TIMER_A_DO_CLEAR;
+    //! Whether to start the timer immediately
     param.startTimer = true;
-    Timer_A_initUpMode(TIMER_A0_BASE, &param);
+    // Clear our system uptime
+    uptimeTicksMicroseconds = 0;
+    // Start the timer in continuous mode with the settings above
+    Timer_A_initContinuousMode(TIMER_A0_BASE, &param);
 
     __delay_cycles(10000); // Delay wait for clock to settle
 }
