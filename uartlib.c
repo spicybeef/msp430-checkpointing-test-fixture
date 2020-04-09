@@ -30,7 +30,15 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* This file was derived from UARTUtils.c and UARTEUSCIA.c from TIRTOS example files */
+/* Notes from Michel: This file was derived from UARTUtils.c and UARTEUSCIA.c
+ * from TIRTOS example files. This implementation is not ideal and kind of
+ * buggy. getchar does not work correctly for example. Only seems to work
+ * reliably with printf and scanf. TODO: include interrupt driven UART access
+ * and fix whatever is happening with getchar. Steps to reproduce problem using
+ * this implementation: getchar() and hit enter right away. getchar() again and
+ * hit a letter and then enter. Subsequent getchar() get stuck in TI's glue code
+ * and never gets here.
+ */
 
 #include <stdio.h>
 #include "driverlib.h"
