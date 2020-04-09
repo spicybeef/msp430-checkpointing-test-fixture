@@ -22,7 +22,6 @@
  * SOFTWARE.
  ******************************************************************************/
 
-#include <conio.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
@@ -42,6 +41,7 @@ void Console_Init(consoleSettings_t *settings)
 
 void Console_Main(void)
 {
+    unsigned int line;
     char selection;
 
     for (;;)
@@ -49,7 +49,7 @@ void Console_Main(void)
         Console_PrintNewLine();
         Console_PrintNewLine();
         Console_PrintHeader("Welcome");
-        for(int line = 0; line < consoleSettings->numSplashLines; line++)
+        for(line = 0; line < consoleSettings->numSplashLines; line++)
         {
             Console_Print("%s", (*(consoleSettings->splashScreenPointer))[line]);
         }
@@ -82,10 +82,21 @@ unsigned int Console_PromptForInt(const char *prompt)
     return input;
 }
 
+unsigned int Console_PromptForChar(const char *prompt)
+{
+    char input;
+
+    Console_PrintNoEol("%s ", prompt);
+    scanf("%c", &input);
+    Console_PrintNewLine();
+
+    return input;
+}
+
 void Console_PromptForAnyKeyBlocking(void)
 {
-    Console_Print("Press any key to continue");
-    getch();
+    Console_Print("Press enter key to continue");
+    Console_PromptForInt("");
 }
 
 char Console_CheckForKey(void)
@@ -163,6 +174,7 @@ char Console_PrintOptionsAndGetResponse(const consoleSelection_t selections[], u
     // ToDo: Assert on number of menu selections greater than 10
     char c;
     bool valid = false;
+    unsigned int i;
     
     do
     {
@@ -173,14 +185,14 @@ char Console_PrintOptionsAndGetResponse(const consoleSelection_t selections[], u
             Console_PrintNoEol(" ["ANSI_COLOR_YELLOW"0"ANSI_COLOR_RESET"-"ANSI_COLOR_YELLOW"%c"ANSI_COLOR_RESET"]-item ", ('0' + (numMenuSelections - 1)));
         }
         // Print passed in selections
-        for (int i = 0; i < numSelections; i++)
+        for (i = 0; i < numSelections; i++)
         {
             Console_PrintNoEol(" ["ANSI_COLOR_YELLOW"%c"ANSI_COLOR_RESET"]-%s ", selections[i].key, selections[i].description);
         }
         Console_PrintNewLine();
         Console_PrintDivider();
         Console_PrintNoEol(" Selection > ");
-        c = getch();
+        scanf("%c", &c);
 
         // If we have menu selections, check for those first
         if (numMenuSelections != 0)
@@ -195,7 +207,7 @@ char Console_PrintOptionsAndGetResponse(const consoleSelection_t selections[], u
         // We didn't get a valid value yet
         if (!valid)
         {
-            for (int i = 0; i < numSelections; i++)
+            for (i = 0; i < numSelections; i++)
             {
                 if (c == selections[i].key)
                 {
@@ -250,6 +262,7 @@ void Console_PrintNewLine(void)
 
 void Console_PrintHeader(char *headerString)
 {
+    unsigned int i;
     unsigned int stringLength = strlen(headerString);
 
     if (stringLength > MAX_HEADER_TITLE_WIDTH)
@@ -259,7 +272,7 @@ void Console_PrintHeader(char *headerString)
 
     Console_PrintNoEol("=["ANSI_COLOR_YELLOW" %s "ANSI_COLOR_RESET"]=", headerString);
     // Fill the rest of the line with '='
-    for (int i = 0; i < (CONSOLE_WIDTH - stringLength - HEADER_TITLE_EXTRAS_WIDTH); i++)
+    for (i = 0; i < (CONSOLE_WIDTH - stringLength - HEADER_TITLE_EXTRAS_WIDTH); i++)
     {
         Console_PutChar('=');
     }
@@ -268,7 +281,8 @@ void Console_PrintHeader(char *headerString)
 
 void Console_PrintDivider(void)
 {
-    for (int i = 0; i < CONSOLE_WIDTH; i++)
+    unsigned int i;
+    for (i = 0; i < CONSOLE_WIDTH; i++)
     {
         Console_PutChar('-');
     }
@@ -277,12 +291,13 @@ void Console_PrintDivider(void)
 
 void Console_PrintMenu(consoleMenu_t *menu)
 {
+    unsigned int i;
     Console_PrintNewLine();
     Console_PrintHeader(menu->id.name);
     Console_PrintNewLine();
     Console_Print(" %s", menu->id.description);
     Console_PrintNewLine();
-    for (int i = 0; i < menu->menuLength; i++)
+    for (i = 0; i < menu->menuLength; i++)
     {
         consoleMenuItem_t *menuItem = &(menu->menuItems[i]);
         Console_Print(" ["ANSI_COLOR_YELLOW"%c"ANSI_COLOR_RESET"] %s - %s", '0' + i, menuItem->id.name, menuItem->id.description);

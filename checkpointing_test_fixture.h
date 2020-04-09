@@ -25,6 +25,7 @@
 #ifndef CHECKPOINTING_TEST_FIXTURE_H
 #define CHECKPOINTING_TEST_FIXTURE_H
 
+void Checkpointing_Init(void);
 void Checkpointing_ExecuteWorkloadPolicy(void);
 void Checkpointing_WorkloadLoop(void);
 void Checkpointing_MarkWorkEnd(void);

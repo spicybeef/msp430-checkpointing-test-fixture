@@ -22,6 +22,7 @@
  * SOFTWARE.
  ******************************************************************************/
 
+#include "driverlib.h"
 #include "init.h"
 
 /**
@@ -45,7 +46,7 @@ int _system_pre_init(void)
 /*
  * GPIO Initialization
  */
-void Init_GPIO(void)
+void Gpio_Init(void)
 {
     // Set all GPIO pins to output low for low power
     GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN0|GPIO_PIN1|GPIO_PIN2|GPIO_PIN3|GPIO_PIN4|GPIO_PIN5|GPIO_PIN6|GPIO_PIN7);
@@ -87,7 +88,7 @@ void Init_GPIO(void)
 /*
  * Clock System Initialization
  */
-void Init_Clock(void)
+void Clock_Init(void)
 {
     // Set DCO frequency to 16 MHz
     CS_setDCOFreq(CS_DCORSEL_1, CS_DCOFSEL_4);
@@ -107,7 +108,7 @@ void Init_Clock(void)
  * Timer initialization
  * @note       This will setup timer A to have a 1us tick
  */
-void Init_Timer(void)
+void Timer_Init(void)
 {
     // Start timer
     Timer_A_initUpModeParam param = {0};
@@ -126,7 +127,7 @@ void Init_Timer(void)
 /*
  * UART Communication Initialization
  */
-bool Init_UART(void)
+bool Uart_Init(void)
 {
     // Configure UART
     EUSCI_A_UART_initParam param = {0};
@@ -166,7 +167,7 @@ bool Init_UART(void)
  *
  * @param      cypherKey  The 32 byte cypher key to use for AES encryption/decrytion
  */
-void Init_AES(uint8_t * cypherKey)
+void Aes_Init(uint8_t * cypherKey)
 {
     // Load a cipher key to module
     AES256_setCipherKey(AES256_BASE, cypherKey, AES256_KEYLENGTH_256BIT);

@@ -30,8 +30,14 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <stdio.h>
 #include "driverlib.h"
 #include "uartlib.h"
+
+// stdio buffers
+#define IO_BUFF_SIZE (128)
+char stdinBuff[IO_BUFF_SIZE];
+char stdoutBuff[IO_BUFF_SIZE];
 
 static UartLib_Object_t UartLib_Object;
 

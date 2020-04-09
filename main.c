@@ -30,43 +30,67 @@
 #include <file.h>
 
 #include "driverlib.h"
+
+#include "init.h"
+#include "interrupts.h"
+#include "menus.h"
 #include "uartlib.h"
+#include "utils.h"
+#include "checkpointing_test_fixture.h"
+
+#pragma PERSISTENT(cipherKey)
+uint8_t cipherKey[32] =
+{
+    0xDE, 0xAD, 0xBE, 0xEF,
+    0xBA, 0xDC, 0x0F, 0xEE,
+    0xFE, 0xED, 0xBE, 0xEF,
+    0xBE, 0xEF, 0xBA, 0xBE,
+    0xBA, 0xDF, 0x00, 0x0D,
+    0xFE, 0xED, 0xC0, 0xDE,
+    0xD0, 0xD0, 0xCA, 0xCA,
+    0xCA, 0xFE, 0xBA, 0xBE,
+};
 
 void main(void)
 {
-    uint16_t startTicks;
-    uint16_t currentTicks;
-    uint16_t i;
-    bool success = true;
-
-    // Reset our runtime variables
-    powerLoss = false;
-    currentlyWorking = false;
-    currentChunkSize = 1024;
-    bytesProcessed = 0;
+    bool success;
 
     // Peripheral initialization
-    Init_GPIO();
-    Init_Clock();
-    Init_Timer();
-    Init_AES(cipherKey);
-    success = Init_UART();
+    Gpio_Init();
+    Clock_Init();
+    Timer_Init();
+    Aes_Init(cipherKey);
+    success = Uart_Init();
+
+    // Initialize program variables
+    Checkpointing_Init();
+
+    // Setup console interface
+    consoleSettings_t consoleSettings = 
+    {
+        &splashScreen,
+        NUM_SPLASH_LINES,
+        &mainMenu,
+    };
+    Console_Init(&consoleSettings);
+    // Erase screen
+    Console_Print(ERASE_SCREEN);
 
     if (!success)
     {
         // Turn on red LED for failure
         GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0);
-        for (;;)
-        {
-            __no_operation();
-        }
+        goto FOREVER;
     }
 
     // Enable global interrupts
     __enable_interrupt();
 
-    char c;
+    // Start console interface
+    Console_Main(); // Does not return
 
+
+FOREVER:
     for (;;)
     {
         // Not just diamonds last forever...

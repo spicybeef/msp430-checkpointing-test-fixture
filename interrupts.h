@@ -25,6 +25,4 @@
 #ifndef INTERRUPTS_H
 #define INTERRUPTS_H
 
-__interrupt void PORT1_ISR(void);
-
 #endif // INTERRUPTS_H

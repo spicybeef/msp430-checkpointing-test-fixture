@@ -25,11 +25,13 @@
 #ifndef INIT_H
 #define INIT_H
 
-int _system_pre_init(void);
-void Init_GPIO(void);
-void Init_Clock(void);
-void Init_Timer(void);
-bool Init_UART(void);
-void Init_AES(uint8_t * cypherKey)
+#include <stdint.h>
+#include <stdbool.h>
+
+void Gpio_Init(void);
+void Clock_Init(void);
+void Timer_Init(void);
+bool Uart_Init(void);
+void Aes_Init(uint8_t * cypherKey);
 
 #endif // INIT_H

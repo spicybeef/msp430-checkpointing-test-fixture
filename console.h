@@ -99,6 +99,7 @@ void Console_Main(void);
 void Console_PromptForAnyKeyBlocking(void);
 char Console_CheckForKey(void);
 unsigned int Console_PromptForInt(const char *prompt);
+unsigned int Console_PromptForChar(const char *prompt);
 void Console_TraverseMenus(consoleMenu_t *menu);
 char Console_PrintOptionsAndGetResponse(const consoleSelection_t selections[], unsigned int numSelections, unsigned int numMenuSelections);
 void Console_Print(const char *format, ...);

@@ -25,24 +25,7 @@
 #include "driverlib.h"
 #include "checkpointing_test_fixture.h"
 
-// stdio buffers
-#define IO_BUFF_SIZE (128)
-char stdinBuff[IO_BUFF_SIZE];
-char stdoutBuff[IO_BUFF_SIZE];
-
 #define AES_ENCRYPTION_DATA_SIZE (16) // Size of data to be encrypted/decrypted (must be multiple of 16)
-#pragma PERSISTENT(cipherKey)
-uint8_t cipherKey[32] =
-{
-    0xDE, 0xAD, 0xBE, 0xEF,
-    0xBA, 0xDC, 0x0F, 0xEE,
-    0xFE, 0xED, 0xBE, 0xEF,
-    0xBE, 0xEF, 0xBA, 0xBE,
-    0xBA, 0xDF, 0x00, 0x0D,
-    0xFE, 0xED, 0xC0, 0xDE,
-    0xD0, 0xD0, 0xCA, 0xCA,
-    0xCA, 0xFE, 0xBA, 0xBE,
-};
 uint8_t dataAESencrypted[AES_ENCRYPTION_DATA_SIZE]; // Encrypted data
 //uint8_t dataAESdecrypted[AES_ENCRYPTION_DATA_SIZE]; // Decrypted data, not used right now
 char message[AES_ENCRYPTION_DATA_SIZE] = {0};
@@ -59,6 +42,15 @@ volatile uint32_t bytesProcessed;
 // Our total workload size (3MB will yield about 30s of work)
 #define TOTAL_WORKLOAD_SIZE_BYTES (3145728)
 
+void Checkpointing_Init(void)
+{
+    // Reset our runtime variables
+    powerLoss = false;
+    currentlyWorking = false;
+    currentChunkSize = 1024;
+    bytesProcessed = 0;
+}
+
 /**
  * @brief      This executes the policy that we're current employing to scale
  *             our workloads. This will modify the current chunk size.
@@ -69,11 +61,15 @@ void Checkpointing_ExecuteWorkloadPolicy(void)
 }
 
 void Checkpointing_WorkloadLoop(void)
+{
+    uint32_t startTicks;
+    uint32_t currentTicks;
+
     // Main loop
     for (;;)
     {
         // Perform our AES workload
-        doAes();
+        Checkpointing_DoAes();
 
         // Wait 1ms, simulates work that needs to be performed in between our
         // workloads.
@@ -101,6 +97,7 @@ void Checkpointing_WorkloadLoop(void)
 
     // Turn on green LED for completion
     GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN1);
+}
 
 /**
  * @brief      Mark that work has started
