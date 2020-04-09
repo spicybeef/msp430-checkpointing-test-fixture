@@ -35,6 +35,23 @@
 
 static UartLib_Object_t UartLib_Object;
 
+void UartLib_Init(void)
+{
+    /* Add the UART device to the system. */
+    add_device("UART", _MSA, UartLib_DeviceOpen,
+               UartLib_DeviceClose, UartLib_DeviceRead,
+               UartLib_DeviceWrite, UartLib_DeviceLSeek,
+               UartLib_DeviceUnlink, UartLib_DeviceRename);
+
+    /* Open UART0 for writing to stdout and set buffer */
+    freopen("UART:0", "w", stdout);
+    setvbuf(stdout, stdinBuff, _IOLBF, IO_BUFF_SIZE);
+
+    /* Open UART0 for reading from stdin and set buffer */
+    freopen("UART:0", "r", stdin);
+    setvbuf(stdin, stdoutBuff, _IOLBF, IO_BUFF_SIZE);
+}
+
 int UartLib_DeviceClose(int fd)
 {
     return (0);

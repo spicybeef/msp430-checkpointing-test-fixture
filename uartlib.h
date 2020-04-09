@@ -31,6 +31,7 @@
  */
 
 #ifndef UARTLIB_H
+#define UARTLIB_H
 
 #include <stddef.h>
 #include <file.h>
@@ -97,6 +98,7 @@ typedef struct
     size_t                  readSize;       /* Chars remaining in buffer */
 } UartLib_Object_t;
 
+void UartLib_Init(void);
 int UartLib_DeviceClose(int fd);
 off_t UartLib_DeviceLSeek(int fd, off_t offset, int origin);
 int UartLib_DeviceOpen(const char *path, unsigned flags, int mode);

@@ -22,54 +22,14 @@
  * SOFTWARE.
  ******************************************************************************/
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stddef.h>
-#include <file.h>
+#ifndef MENUS_H
+#define MENUS_H
 
-#include "driverlib.h"
-#include "uartlib.h"
+#include "console.h"
 
-void main(void)
-{
-    uint16_t startTicks;
-    uint16_t currentTicks;
-    uint16_t i;
-    bool success = true;
+#define NUM_SPLASH_LINES (16)
 
-    // Reset our runtime variables
-    powerLoss = false;
-    currentlyWorking = false;
-    currentChunkSize = 1024;
-    bytesProcessed = 0;
+extern splash_t splashScreen;
+extern consoleMenu_t mainMenu;
 
-    // Peripheral initialization
-    Init_GPIO();
-    Init_Clock();
-    Init_Timer();
-    Init_AES(cipherKey);
-    success = Init_UART();
-
-    if (!success)
-    {
-        // Turn on red LED for failure
-        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0);
-        for (;;)
-        {
-            __no_operation();
-        }
-    }
-
-    // Enable global interrupts
-    __enable_interrupt();
-
-    char c;
-
-    for (;;)
-    {
-        // Not just diamonds last forever...
-        __no_operation();
-    }
-}
+#endif // MENUS_H

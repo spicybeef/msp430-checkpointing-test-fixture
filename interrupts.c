@@ -22,54 +22,14 @@
  * SOFTWARE.
  ******************************************************************************/
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stddef.h>
-#include <file.h>
+#include "interrupts.h"
 
-#include "driverlib.h"
-#include "uartlib.h"
-
-void main(void)
+/*
+ * PORT1_VECTOR Interrupt Vector handler
+ *
+ */
+#pragma vector=PORT1_VECTOR
+__interrupt void PORT1_ISR(void)
 {
-    uint16_t startTicks;
-    uint16_t currentTicks;
-    uint16_t i;
-    bool success = true;
-
-    // Reset our runtime variables
-    powerLoss = false;
-    currentlyWorking = false;
-    currentChunkSize = 1024;
-    bytesProcessed = 0;
-
-    // Peripheral initialization
-    Init_GPIO();
-    Init_Clock();
-    Init_Timer();
-    Init_AES(cipherKey);
-    success = Init_UART();
-
-    if (!success)
-    {
-        // Turn on red LED for failure
-        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0);
-        for (;;)
-        {
-            __no_operation();
-        }
-    }
-
-    // Enable global interrupts
-    __enable_interrupt();
-
-    char c;
-
-    for (;;)
-    {
-        // Not just diamonds last forever...
-        __no_operation();
-    }
+    //
 }

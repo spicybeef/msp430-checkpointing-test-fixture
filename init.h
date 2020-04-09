@@ -22,54 +22,14 @@
  * SOFTWARE.
  ******************************************************************************/
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stddef.h>
-#include <file.h>
+#ifndef INIT_H
+#define INIT_H
 
-#include "driverlib.h"
-#include "uartlib.h"
+int _system_pre_init(void);
+void Init_GPIO(void);
+void Init_Clock(void);
+void Init_Timer(void);
+bool Init_UART(void);
+void Init_AES(uint8_t * cypherKey)
 
-void main(void)
-{
-    uint16_t startTicks;
-    uint16_t currentTicks;
-    uint16_t i;
-    bool success = true;
-
-    // Reset our runtime variables
-    powerLoss = false;
-    currentlyWorking = false;
-    currentChunkSize = 1024;
-    bytesProcessed = 0;
-
-    // Peripheral initialization
-    Init_GPIO();
-    Init_Clock();
-    Init_Timer();
-    Init_AES(cipherKey);
-    success = Init_UART();
-
-    if (!success)
-    {
-        // Turn on red LED for failure
-        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0);
-        for (;;)
-        {
-            __no_operation();
-        }
-    }
-
-    // Enable global interrupts
-    __enable_interrupt();
-
-    char c;
-
-    for (;;)
-    {
-        // Not just diamonds last forever...
-        __no_operation();
-    }
-}
+#endif // INIT_H

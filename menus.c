@@ -22,54 +22,31 @@
  * SOFTWARE.
  ******************************************************************************/
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stddef.h>
-#include <file.h>
+#include "menus.h"
 
-#include "driverlib.h"
-#include "uartlib.h"
-
-void main(void)
+splash_t splashScreen =
 {
-    uint16_t startTicks;
-    uint16_t currentTicks;
-    uint16_t i;
-    bool success = true;
+    ANSI_COLOR_CYAN,                        
+    "   ██████╗████████╗███████╗",
+    "  ██╔════╝╚══██╔══╝██╔════╝",
+    "  ██║        ██║   █████╗  ",
+    "  ██║        ██║   ██╔══╝  ",
+    "  ╚██████╗   ██║   ██║     ",
+    "   ╚═════╝   ╚═╝   ╚═╝     ",
+    "",
+    ANSI_COLOR_RESET,
+    "   Checkpointing Test Fixture",
+    "   Build Date: "__DATE__" "__TIME__"",
+    "",
+};
 
-    // Reset our runtime variables
-    powerLoss = false;
-    currentlyWorking = false;
-    currentChunkSize = 1024;
-    bytesProcessed = 0;
+// All menus need to be externed up here
+extern consoleMenu_t mainMenu;
 
-    // Peripheral initialization
-    Init_GPIO();
-    Init_Clock();
-    Init_Timer();
-    Init_AES(cipherKey);
-    success = Init_UART();
-
-    if (!success)
-    {
-        // Turn on red LED for failure
-        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0);
-        for (;;)
-        {
-            __no_operation();
-        }
-    }
-
-    // Enable global interrupts
-    __enable_interrupt();
-
-    char c;
-
-    for (;;)
-    {
-        // Not just diamonds last forever...
-        __no_operation();
-    }
-}
+consoleMenuItem_t mainMenuItems[] = 
+{
+    {{"Setup",  "Setup checkpointing parameters"},  NO_SUB_MENU,    NO_FUNCTION_POINTER},
+    {{"Current",  "Display current parameters"},    NO_SUB_MENU,    NO_FUNCTION_POINTER},
+    {{"Run", "Run checkpointing workload"},         NO_SUB_MENU,    NO_FUNCTION_POINTER},
+};
+consoleMenu_t mainMenu = {{"Main Menu", "This is the main menu."}, mainMenuItems, NO_TOP_MENU, MENU_SIZE(mainMenuItems)};
