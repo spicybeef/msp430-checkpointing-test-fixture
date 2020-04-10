@@ -78,12 +78,22 @@ void Gpio_Init(void)
     // Set PJ.4 and PJ.5 as Primary Module Function Input, LFXT.
     GPIO_setAsPeripheralModuleFunctionInputPin(GPIO_PORT_PJ, GPIO_PIN4 + GPIO_PIN5, GPIO_PRIMARY_MODULE_FUNCTION);
 
-    // P8.1 is out timing pin, active high
-    GPIO_setOutputLowOnPin(GPIO_PORT_P8, GPIO_PIN1);
-
     // Disable the GPIO power-on default high-impedance mode
     // to activate previously configured port settings
     PMM_unlockLPM5();
+
+    // P4.1 as output pin starting low
+    GPIO_setOutputLowOnPin(GPIO_PORT_P4, GPIO_PIN1);
+    GPIO_setAsOutputPin(GPIO_PORT_P4, GPIO_PIN1);
+
+    // P8.1 is input for power-loss signal
+    GPIO_setAsInputPin(GPIO_PORT_P8, GPIO_PIN1);
+    // P8.1 interrupt edge on high to low transition
+    GPIO_selectInterruptEdge(GPIO_PORT_P8, GPIO_PIN1, GPIO_HIGH_TO_LOW_TRANSITION);
+    // P8.1 IFG cleared
+    GPIO_clearInterrupt(GPIO_PORT_P8, GPIO_PIN1);
+    // P8.1 interrupt enabled
+    GPIO_enableInterrupt(GPIO_PORT_P8, GPIO_PIN1);
 }
 
 /*

@@ -65,10 +65,20 @@ void Console_Main(void)
                 break;
             default:
                 Console_Print(ANSI_COLOR_RED" Something went wrong..."ANSI_COLOR_RESET);
-                for(;;);
                 break;
         };
     }
+}
+
+unsigned long int Console_PromptForLongInt(const char *prompt)
+{
+    unsigned long int input;
+
+    Console_PrintNoEol("%s ", prompt);
+    scanf("%lu", &input);
+    Console_PrintNewLine();
+
+    return input;
 }
 
 unsigned int Console_PromptForInt(const char *prompt)

@@ -22,10 +22,14 @@
  * SOFTWARE.
  ******************************************************************************/
 
+#include <stdbool.h>
+
 #include "driverlib.h"
 #include "interrupts.h"
 #include "init.h"
 #include "utils.h"
+#include "console.h"
+#include "checkpointing_test_fixture.h"
 
 /*
  * Timer0_A1 Interrupt Vector handler
@@ -41,13 +45,16 @@ __interrupt void TIMER0_A1_ISR(void)
 }
 
 /*
- * PORT1_VECTOR Interrupt Vector handler
+ * PORT8_VECTOR Interrupt Vector handler
  *
  */
-#pragma vector=PORT1_VECTOR
-__interrupt void PORT1_ISR(void)
+#pragma vector=PORT8_VECTOR
+__interrupt void PORT8_ISR(void)
 {
-    //
+    // Signal that power loss has occurred
+    checkpointingObj.powerLoss = true;
+    // P8.1 IFG cleared
+    GPIO_clearInterrupt(GPIO_PORT_P8, GPIO_PIN1);
 }
 
 

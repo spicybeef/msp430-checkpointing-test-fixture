@@ -25,7 +25,15 @@
 #ifndef CHECKPOINTING_TEST_FIXTURE_H
 #define CHECKPOINTING_TEST_FIXTURE_H
 
+#include <stdbool.h>
 #include "console.h"
+
+typedef enum
+{
+    WORKLOAD_SCALING_LINEAR = 0,
+    WORKLOAD_SCALING_RANDOM = 1,
+    WORKLOAD_SCALING_COUNTER = 2,
+} workloadScalingPolicy_e;
 
 typedef struct
 {
@@ -33,15 +41,25 @@ typedef struct
     bool powerLoss;
     // Active work flag (raised while workload is busy doing work)
     bool currentlyWorking;
+    // Starting chunk size
+    uint16_t startingChunkSize;
     // Current chunk size
     uint16_t currentChunkSize;
     // Total bytes processed by the workload
     uint32_t bytesProcessed;
+    // Deadtime between workloads (simulates data transfer or other work)
+    uint32_t deadTimeMicroseconds;
+    // Total workload size
+    uint32_t totalWorkloadSizeBytes;
+    // Workload scaling policy
+    workloadScalingPolicy_e policy;
 } checkpointingObj_t;
 
 extern volatile checkpointingObj_t checkpointingObj;
 
 void Checkpointing_Init(void);
+functionResult_e PowerLossEmu_Setup(unsigned int numArgs, int args[]);
+functionResult_e Checkpointing_CurrentSettings(unsigned int numArgs, int args[]);
 void Checkpointing_ExecuteWorkloadPolicy(void);
 functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[]);
 void Checkpointing_MarkWorkEnd(void);

@@ -24,6 +24,7 @@
 
 #include "menus.h"
 #include "utils.h"
+#include "checkpointing_test_fixture.h"
 
 splash_t splashScreen =
 {
@@ -47,8 +48,8 @@ extern consoleMenu_t mainMenu;
 consoleMenuItem_t mainMenuItems[] = 
 {
     {{"Uptime", "Get current system uptime"},       NO_SUB_MENU,    Utils_DisplayUptime},
-    {{"Setup",  "Setup checkpointing parameters"},  NO_SUB_MENU,    NO_FUNCTION_POINTER},
-    {{"Current",  "Display current parameters"},    NO_SUB_MENU,    NO_FUNCTION_POINTER},
-    {{"Run", "Run checkpointing workload"},         NO_SUB_MENU,    NO_FUNCTION_POINTER},
+    {{"Setup",  "Setup checkpointing parameters"},  NO_SUB_MENU,    PowerLossEmu_Setup},
+    {{"Current",  "Display current parameters"},    NO_SUB_MENU,    Checkpointing_CurrentSettings},
+    {{"Run", "Run checkpointing workload"},         NO_SUB_MENU,    Checkpointing_WorkloadLoop},
 };
 consoleMenu_t mainMenu = {{"Main Menu", "This is the main menu."}, mainMenuItems, NO_TOP_MENU, MENU_SIZE(mainMenuItems)};

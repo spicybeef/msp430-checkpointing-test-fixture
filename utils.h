@@ -31,6 +31,8 @@
 #define MICROSECONDS_IN_SECONDS         (1000000)
 #define MICROSECONDS_IN_MILLISECONDS    (1000)
 
+typedef const char *const arrayOfStrings_t[];
+
 extern volatile uint32_t uptimeTicksMicroseconds;
 
 uint32_t Utils_GetUptimeMicroseconds(void);

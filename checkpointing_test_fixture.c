@@ -27,23 +27,60 @@
 #include "console.h"
 #include "utils.h"
 
-#define AES_ENCRYPTION_DATA_SIZE (16) // Size of data to be encrypted/decrypted (must be multiple of 16)
-static uint8_t dataAESencrypted[AES_ENCRYPTION_DATA_SIZE]; // Encrypted data
-//static uint8_t dataAESdecrypted[AES_ENCRYPTION_DATA_SIZE]; // Decrypted data, not used right now
-static char message[AES_ENCRYPTION_DATA_SIZE] = {0};
+#define AES_MINIMUM_CHUNK_SIZE (16) // Size of data to be encrypted/decrypted (must be multiple of 16)
+static uint8_t dataAESencrypted[AES_MINIMUM_CHUNK_SIZE]; // Encrypted data
+//static uint8_t dataAESdecrypted[AES_MINIMUM_CHUNK_SIZE]; // Decrypted data, not used right now
+static char message[AES_MINIMUM_CHUNK_SIZE] = {0};
 
 // Our total workload size (3MB will yield about 30s of work)
 #define TOTAL_WORKLOAD_SIZE_BYTES (3145728)
 
 volatile checkpointingObj_t checkpointingObj;
 
+static arrayOfStrings_t workloadScalingStrings =
+{
+    ANSI_COLOR_MAGENTA"Linear Scaling"ANSI_COLOR_RESET,
+    ANSI_COLOR_MAGENTA"Random Scaling"ANSI_COLOR_RESET,
+    ANSI_COLOR_MAGENTA"Counter Scaling"ANSI_COLOR_RESET,
+};
+
 void Checkpointing_Init(void)
 {
     // Reset our runtime variables
     checkpointingObj.powerLoss = false;
     checkpointingObj.currentlyWorking = false;
-    checkpointingObj.currentChunkSize = 1024;
-    checkpointingObj.bytesProcessed = 0;
+    checkpointingObj.startingChunkSize = 1024;
+    checkpointingObj.deadTimeMicroseconds = 1000;
+    checkpointingObj.totalWorkloadSizeBytes = TOTAL_WORKLOAD_SIZE_BYTES;
+    checkpointingObj.policy = WORKLOAD_SCALING_LINEAR;
+}
+
+functionResult_e PowerLossEmu_Setup(unsigned int numArgs, int args[])
+{
+    // Print current settings
+    Console_PrintDivider();
+    Checkpointing_CurrentSettings(0, 0);
+    Console_PrintDivider();
+
+    // Get new settings
+    checkpointingObj.totalWorkloadSizeBytes = Console_PromptForLongInt("Enter workload size (B): ");
+    checkpointingObj.startingChunkSize = Console_PromptForInt("Enter starting chunk size (B): ");
+    checkpointingObj.deadTimeMicroseconds = Console_PromptForInt("Enter dead-time (ms): ");
+    Console_Print("Choose a workload policy");
+    Console_Print("[0]-linear, [1]-random, [2]-counter");
+    checkpointingObj.policy = (workloadScalingPolicy_e)((0x3)&Console_PromptForInt("Enter workload policy: "));
+
+    return SUCCESS;
+}
+
+functionResult_e Checkpointing_CurrentSettings(unsigned int numArgs, int args[])
+{
+    Console_Print("Total workload size size: %lu B", checkpointingObj.totalWorkloadSizeBytes);
+    Console_Print("Starting chunk size: %u B", checkpointingObj.startingChunkSize);
+    Console_Print("Dead-time between workloads: %lu ms", checkpointingObj.deadTimeMicroseconds);
+    Console_Print("Current workload scaling policy: %s", workloadScalingStrings[(unsigned int)checkpointingObj.policy]);
+
+    return SUCCESS;
 }
 
 /**
@@ -52,14 +89,43 @@ void Checkpointing_Init(void)
  */
 void Checkpointing_ExecuteWorkloadPolicy(void)
 {
-    // No policy yet!
+    // Remove 16 bytes from chunk size
+    if (checkpointingObj.currentChunkSize > 16)
+    {
+        checkpointingObj.currentChunkSize -= 16;
+    }
 }
 
 functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[])
 {
     uint32_t startTicks;
     uint32_t currentTicks;
+    uint32_t workloadStart;
+    uint32_t workloadEnd;
 
+    // Reset runtime variables
+    checkpointingObj.currentChunkSize = checkpointingObj.startingChunkSize;
+    checkpointingObj.bytesProcessed = 0;
+
+    // Wait for the first power-loss pulse from the power-loss emulator
+    checkpointingObj.powerLoss = false;
+    Console_Print("Waiting for power-loss emulator sync...");
+    while (!checkpointingObj.powerLoss);
+    checkpointingObj.powerLoss = false;
+    Console_Print(ANSI_COLOR_GREEN"SYNC!"ANSI_COLOR_RESET);
+
+    // Reset parameters
+    Checkpointing_Init();
+    // Print current settings
+    Console_PrintDivider();
+    Checkpointing_CurrentSettings(0, 0);
+    Console_PrintDivider();
+
+    Console_Print("Beginning workload...");
+    // Turn off green LED (will be turned on for completion)
+    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN1);
+
+    workloadStart = Utils_GetUptimeMicroseconds();
     // Main loop
     for (;;)
     {
@@ -85,11 +151,18 @@ functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[])
 
         if (checkpointingObj.bytesProcessed >= TOTAL_WORKLOAD_SIZE_BYTES)
         {
+            workloadEnd = Utils_GetUptimeMicroseconds();
             // We're done! Leave the workload loop
             break;
         }
     }
 
+    Console_PrintNewLine();
+    Console_Print("Workload complete!");
+    Console_PrintDivider();
+    Console_Print("Processed %lu bytes", checkpointingObj.bytesProcessed);
+    Console_Print("Took %f s", (workloadEnd - workloadStart)/1000000.0);
+    Console_PrintDivider();
     // Turn on green LED for completion
     GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN1);
 
@@ -101,7 +174,7 @@ functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[])
  */
 void Checkpointing_MarkWorkStart(void)
 {
-    GPIO_setOutputHighOnPin(GPIO_PORT_P8, GPIO_PIN1);
+    GPIO_setOutputHighOnPin(GPIO_PORT_P4, GPIO_PIN1);
     checkpointingObj.currentlyWorking = true;
 }
 
@@ -110,7 +183,7 @@ void Checkpointing_MarkWorkStart(void)
  */
 void Checkpointing_MarkWorkEnd(void)
 {
-    GPIO_setOutputLowOnPin(GPIO_PORT_P8, GPIO_PIN1);
+    GPIO_setOutputLowOnPin(GPIO_PORT_P4, GPIO_PIN1);
     checkpointingObj.currentlyWorking = false;
 }
 
@@ -121,13 +194,13 @@ void Checkpointing_DoAes(void)
 {
     uint16_t i;
     // Copy the string we want to encrypt to our buffer
-    const char stringToEncrypt[] = "I am a meat popsicle.           ";
+    const char stringToEncrypt[] = "Meat popsicle";
     memcpy(message, stringToEncrypt, sizeof(stringToEncrypt));
 
     // Do stuff
     // Signal that work is starting
     Checkpointing_MarkWorkStart();
-    for (i = 0; i < checkpointingObj.currentChunkSize; i += AES_ENCRYPTION_DATA_SIZE)
+    for (i = 0; i < checkpointingObj.currentChunkSize; i += AES_MINIMUM_CHUNK_SIZE)
     {
         // Encrypt data with preloaded cipher key. For this fixture, we will be
         // performing work on the same message (no real work is being done, just
