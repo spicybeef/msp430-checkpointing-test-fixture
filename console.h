@@ -112,6 +112,7 @@ void Console_Main(void);
 
 void Console_PromptForAnyKeyBlocking(void);
 char Console_CheckForKey(void);
+unsigned long long int Console_PromptForLongLongInt(const char *prompt);
 unsigned long int Console_PromptForLongInt(const char *prompt);
 unsigned int Console_PromptForInt(const char *prompt);
 unsigned int Console_PromptForChar(const char *prompt);

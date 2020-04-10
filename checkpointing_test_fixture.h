@@ -30,9 +30,10 @@
 
 typedef enum
 {
-    WORKLOAD_SCALING_LINEAR = 0,
-    WORKLOAD_SCALING_RANDOM = 1,
-    WORKLOAD_SCALING_COUNTER = 2,
+    WORKLOAD_SCALING_NONE = 0,
+    WORKLOAD_SCALING_LINEAR = 1,
+    WORKLOAD_SCALING_RANDOM = 2,
+    WORKLOAD_SCALING_COUNTER = 3,
 } workloadScalingPolicy_e;
 
 typedef struct
@@ -46,13 +47,15 @@ typedef struct
     // Current chunk size
     uint16_t currentChunkSize;
     // Total bytes processed by the workload
-    uint32_t bytesProcessed;
+    uint64_t bytesProcessed;
     // Deadtime between workloads (simulates data transfer or other work)
     uint32_t deadTimeMicroseconds;
     // Total workload size
-    uint32_t totalWorkloadSizeBytes;
+    uint64_t totalWorkloadSizeBytes;
     // Workload scaling policy
     workloadScalingPolicy_e policy;
+    // Workload fail count
+    uint16_t workloadFails;
 } checkpointingObj_t;
 
 extern volatile checkpointingObj_t checkpointingObj;

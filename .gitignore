@@ -60,3 +60,4 @@ targetConfigs/
 .project
 lnk_msp430fr5994.cmd
 .launches/
+/Release/

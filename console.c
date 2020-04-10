@@ -27,6 +27,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 
+#include "driverlib.h" // ToDo: figure out how to do without this
 #include "console.h"
 
 static consoleSettings_t *consoleSettings;
@@ -70,6 +71,17 @@ void Console_Main(void)
     }
 }
 
+unsigned long long int Console_PromptForLongLongInt(const char *prompt)
+{
+    unsigned long long int input;
+
+    Console_PrintNoEol("%s ", prompt);
+    scanf("%llu", &input);
+    Console_PrintNewLine();
+
+    return input;
+}
+
 unsigned long int Console_PromptForLongInt(const char *prompt)
 {
     unsigned long int input;
@@ -111,7 +123,14 @@ void Console_PromptForAnyKeyBlocking(void)
 
 char Console_CheckForKey(void)
 {
-    return 0;
+    if (EUSCI_A_UART_getInterruptStatus(EUSCI_A0_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT_FLAG))
+    {
+        return EUSCI_A_UART_receiveData(EUSCI_A0_BASE);
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 void Console_TraverseMenus(consoleMenu_t *menu)
