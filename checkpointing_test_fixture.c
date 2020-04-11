@@ -22,6 +22,7 @@
  * SOFTWARE.
  ******************************************************************************/
 
+#include <stdio.h>
 #include "driverlib.h"
 #include "checkpointing_test_fixture.h"
 #include "console.h"
@@ -33,7 +34,7 @@ static uint8_t dataAESencrypted[AES_MINIMUM_CHUNK_SIZE]; // Encrypted data
 static char message[AES_MINIMUM_CHUNK_SIZE] = {0};
 
 // Our total workload size
-#define TOTAL_WORKLOAD_SIZE_BYTES (5242880)
+#define TOTAL_WORKLOAD_SIZE_BYTES (10 * 1024ULL * 1024ULL)
 
 volatile checkpointingObj_t checkpointingObj;
 
@@ -45,31 +46,56 @@ static arrayOfStrings_t workloadScalingStrings =
     ANSI_COLOR_MAGENTA"Counter Scaling"ANSI_COLOR_RESET,
 };
 
+static const uint16_t chunkScaleLut[CHUNK_SCALE_MAX] =
+{
+    1024,   // CHUNK_SCALE_1024
+    512,    // CHUNK_SCALE_512
+    256,    // CHUNK_SCALE_256
+    128,    // CHUNK_SCALE_128
+    64,     // CHUNK_SCALE_64
+    32,     // CHUNK_SCALE_32
+    16,     // CHUNK_SCALE_16
+};
+
 void Checkpointing_Init(void)
 {
     // Reset our runtime variables
     checkpointingObj.powerLoss = false;
     checkpointingObj.currentlyWorking = false;
-    checkpointingObj.startingChunkSize = 1024;
+    checkpointingObj.startingChunkScale = CHUNK_SCALE_1024;
     checkpointingObj.deadTimeMicroseconds = 500;
     checkpointingObj.totalWorkloadSizeBytes = TOTAL_WORKLOAD_SIZE_BYTES;
     checkpointingObj.policy = WORKLOAD_SCALING_LINEAR;
-}
+};
 
 functionResult_e PowerLossEmu_Setup(unsigned int numArgs, int args[])
 {
+    unsigned int i;
+
     // Print current settings
+    Console_Print("Old settings:");
     Console_PrintDivider();
     Checkpointing_CurrentSettings(0, 0);
     Console_PrintDivider();
 
     // Get new settings
-    checkpointingObj.totalWorkloadSizeBytes = Console_PromptForLongLongInt("Enter workload size (B): ");
-    checkpointingObj.startingChunkSize = Console_PromptForInt("Enter starting chunk size (B): ");
+    checkpointingObj.totalWorkloadSizeBytes = (1024ULL*1024ULL*Console_PromptForInt("Total workload size (MB): "));
+    Console_Print("Choose a starting chunk size:");
+    for (i = 0; i < CHUNK_SCALE_MAX; i++)
+    {
+        Console_PrintNoEol("[%u] - %u ", i, chunkScaleLut[i]);
+    }
+    Console_PrintNewLine();
+    checkpointingObj.startingChunkScale = (chunkScale_e)((0x7)&Console_PromptForInt("Starting chunk size: "));
     checkpointingObj.deadTimeMicroseconds = Console_PromptForInt("Enter dead-time (ms): ");
     Console_Print("Choose a workload policy");
     Console_Print("[0]-linear, [1]-random, [2]-counter");
-    checkpointingObj.policy = (workloadScalingPolicy_e)((0x3)&Console_PromptForInt("Enter workload policy: "));
+    checkpointingObj.policy = (workloadScalingPolicy_e)(((0x7)&Console_PromptForInt("Enter workload policy: ")) + 1);
+
+    Console_PrintDivider();
+    Console_Print("New settings:");
+    Checkpointing_CurrentSettings(0, 0);
+    Console_PrintDivider();
 
     return SUCCESS;
 }
@@ -77,24 +103,11 @@ functionResult_e PowerLossEmu_Setup(unsigned int numArgs, int args[])
 functionResult_e Checkpointing_CurrentSettings(unsigned int numArgs, int args[])
 {
     Console_Print("Total workload size size: %llu B", checkpointingObj.totalWorkloadSizeBytes);
-    Console_Print("Starting chunk size: %u B", checkpointingObj.startingChunkSize);
+    Console_Print("Starting chunk size: %u B", chunkScaleLut[(unsigned int)checkpointingObj.startingChunkScale]);
     Console_Print("Dead-time between workloads: %lu ms", checkpointingObj.deadTimeMicroseconds);
     Console_Print("Current workload scaling policy: %s", workloadScalingStrings[(unsigned int)checkpointingObj.policy]);
 
     return SUCCESS;
-}
-
-/**
- * @brief      This executes the policy that we're current employing to scale
- *             our workloads. This will modify the current chunk size.
- */
-void Checkpointing_ExecuteWorkloadPolicy(void)
-{
-    // Remove 16 bytes from chunk size
-    if (checkpointingObj.currentChunkSize > 16)
-    {
-        checkpointingObj.currentChunkSize -= 16;
-    }
 }
 
 functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[])
@@ -103,11 +116,18 @@ functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[])
     uint32_t currentTicks;
     uint32_t workloadStart;
     uint32_t workloadEnd;
+    uint32_t progressTicks;
 
     // Reset runtime variables
-    checkpointingObj.currentChunkSize = checkpointingObj.startingChunkSize;
+    checkpointingObj.currentChunkScale = checkpointingObj.startingChunkScale;
     checkpointingObj.bytesProcessed = 0;
     checkpointingObj.workloadFails = 0;
+
+    // Print current settings
+    Console_Print("Current settings:");
+    Console_PrintDivider();
+    Checkpointing_CurrentSettings(0, 0);
+    Console_PrintDivider();
 
     // Wait for the first power-loss pulse from the power-loss emulator
     checkpointingObj.powerLoss = false;
@@ -128,6 +148,7 @@ functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[])
     GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN1);
 
     workloadStart = Utils_GetUptimeMicroseconds();
+    progressTicks = workloadStart;
     // Main loop
     for (;;)
     {
@@ -150,6 +171,13 @@ functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[])
             currentTicks = Utils_GetUptimeMicroseconds();
         }
         while ((currentTicks - startTicks) < checkpointingObj.deadTimeMicroseconds);
+
+        if ((Utils_GetUptimeMicroseconds() - progressTicks) > 1000000UL)
+        {
+            progressTicks = Utils_GetUptimeMicroseconds();
+            Console_PutChar('.');
+            fflush(stdout);
+        }
 
         if (checkpointingObj.bytesProcessed >= TOTAL_WORKLOAD_SIZE_BYTES)
         {
@@ -207,7 +235,7 @@ void Checkpointing_DoAes(void)
     // Do stuff
     // Signal that work is starting
     Checkpointing_MarkWorkStart();
-    for (i = 0; i < checkpointingObj.currentChunkSize; i += AES_MINIMUM_CHUNK_SIZE)
+    for (i = 0; i < chunkScaleLut[(unsigned int)checkpointingObj.currentChunkScale]; i += AES_MINIMUM_CHUNK_SIZE)
     {
         // Encrypt data with preloaded cipher key. For this fixture, we will be
         // performing work on the same message (no real work is being done, just
@@ -228,7 +256,7 @@ void Checkpointing_DoAes(void)
     {
         // If we're here, the chunk successfully executed! Add to our total
         // bytes processed accumulator.
-        checkpointingObj.bytesProcessed += checkpointingObj.currentChunkSize;
+        checkpointingObj.bytesProcessed += chunkScaleLut[(unsigned int)checkpointingObj.currentChunkScale];
         // Reset any previous failures since we've passed this one
         if (checkpointingObj.workloadFails)
         {
@@ -251,10 +279,10 @@ void Checkpointing_DoAes(void)
                 if (checkpointingObj.workloadFails >= 3)
                 {
                     checkpointingObj.workloadFails = 0;
-                    // Workload scales linearly by 2 every failure
-                    if (checkpointingObj.currentChunkSize > AES_MINIMUM_CHUNK_SIZE)
+                    // Workload scales linearly by 2 every failure. Don't go past min
+                    if (checkpointingObj.currentChunkScale != CHUNK_SCALE_16)
                     {
-                        checkpointingObj.currentChunkSize >>= 1;
+                        checkpointingObj.currentChunkScale = (chunkScale_e)((unsigned int)checkpointingObj.currentChunkScale + 1);
                     }
                 }
                 break;

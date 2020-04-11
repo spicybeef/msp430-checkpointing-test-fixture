@@ -36,16 +36,28 @@ typedef enum
     WORKLOAD_SCALING_COUNTER = 3,
 } workloadScalingPolicy_e;
 
+typedef enum
+{
+    CHUNK_SCALE_1024 = 0,
+    CHUNK_SCALE_512 = 1,
+    CHUNK_SCALE_256 = 2,
+    CHUNK_SCALE_128 = 3,
+    CHUNK_SCALE_64 = 4,
+    CHUNK_SCALE_32 = 5,
+    CHUNK_SCALE_16 = 6,
+    CHUNK_SCALE_MAX = 7,
+} chunkScale_e;
+
 typedef struct
 {
     // Power loss flag (raised by the GPIO interrupt)
     bool powerLoss;
     // Active work flag (raised while workload is busy doing work)
     bool currentlyWorking;
-    // Starting chunk size
-    uint16_t startingChunkSize;
-    // Current chunk size
-    uint16_t currentChunkSize;
+    // Starting chunk scale
+    chunkScale_e startingChunkScale;
+    // Current chunk scale
+    chunkScale_e currentChunkScale;
     // Total bytes processed by the workload
     uint64_t bytesProcessed;
     // Deadtime between workloads (simulates data transfer or other work)
@@ -63,7 +75,6 @@ extern volatile checkpointingObj_t checkpointingObj;
 void Checkpointing_Init(void);
 functionResult_e PowerLossEmu_Setup(unsigned int numArgs, int args[]);
 functionResult_e Checkpointing_CurrentSettings(unsigned int numArgs, int args[]);
-void Checkpointing_ExecuteWorkloadPolicy(void);
 functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[]);
 void Checkpointing_MarkWorkEnd(void);
 void Checkpointing_MarkWorkStart(void);

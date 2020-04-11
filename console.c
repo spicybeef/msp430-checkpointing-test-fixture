@@ -27,7 +27,8 @@
 #include <stdarg.h>
 #include <stdbool.h>
 
-#include "driverlib.h" // ToDo: figure out how to do without this
+#include "driverlib.h" // ToDo: Remove this, workaround for non-blocking character read
+#include "uartlib.h" // ToDo: Remove this, workaround for flushing UART buffer
 #include "console.h"
 
 static consoleSettings_t *consoleSettings;
@@ -77,6 +78,7 @@ unsigned long long int Console_PromptForLongLongInt(const char *prompt)
 
     Console_PrintNoEol("%s ", prompt);
     scanf("%llu", &input);
+    UartLib_FlushBuff();
     Console_PrintNewLine();
 
     return input;
@@ -88,6 +90,7 @@ unsigned long int Console_PromptForLongInt(const char *prompt)
 
     Console_PrintNoEol("%s ", prompt);
     scanf("%lu", &input);
+    UartLib_FlushBuff();
     Console_PrintNewLine();
 
     return input;
@@ -99,6 +102,7 @@ unsigned int Console_PromptForInt(const char *prompt)
 
     Console_PrintNoEol("%s ", prompt);
     scanf("%d", &input);
+    UartLib_FlushBuff();
     Console_PrintNewLine();
 
     return input;

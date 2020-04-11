@@ -37,7 +37,8 @@
  * and fix whatever is happening with getchar. Steps to reproduce problem using
  * this implementation: getchar() and hit enter right away. getchar() again and
  * hit a letter and then enter. Subsequent getchar() get stuck in TI's glue code
- * and never gets here.
+ * and never gets here. Another problem is when you use backspace while entering
+ * text for scanf.
  */
 
 #include <stdio.h>
@@ -190,43 +191,64 @@ void UartLib_ReadData()
 {
     uint8_t readIn;
 
-    /* Receive char */
+    // Receive char
     readIn = EUSCI_A_UART_receiveData(EUSCI_A0_BASE);
 
-    /* If data mode is set to TEXT replace return with a newline. */
-    if (UartLib_Object.readDataMode == UART_DATA_TEXT)
+    // Only accept a certain range of characters (32-127) and enter
+    if (((readIn >= 32) && (readIn <= 127)) || readIn == '\r')
     {
-        if (readIn == '\r')
+        // If data mode is set to TEXT replace return with a newline.
+        if (UartLib_Object.readDataMode == UART_DATA_TEXT)
         {
-            /* Echo character if enabled. */
-            if (UartLib_Object.readEcho)
+            if (readIn == '\r')
             {
-                /* Wait until TX is ready */
-                while (!EUSCI_A_UART_getInterruptStatus(EUSCI_A0_BASE, EUSCI_A_UART_TRANSMIT_INTERRUPT_FLAG));
-                EUSCI_A_UART_transmitData(EUSCI_A0_BASE, '\r');
+                // Echo character if enabled.
+                // if (UartLib_Object.readEcho)
+                // {
+                //     // Wait until TX is ready
+                //     while (!EUSCI_A_UART_getInterruptStatus(EUSCI_A0_BASE, EUSCI_A_UART_TRANSMIT_INTERRUPT_FLAG));
+                //     EUSCI_A_UART_transmitData(EUSCI_A0_BASE, '\r');
+                // }
+
+                readIn = '\n';
             }
-            readIn = '\n';
+        }
+
+        // Echo character if enabled (but don't echo newlines)
+        if ((UartLib_Object.readEcho) && (readIn != '\n'))
+        {
+            // Wait until TX is ready
+            while (!EUSCI_A_UART_getInterruptStatus(EUSCI_A0_BASE,
+                        EUSCI_A_UART_TRANSMIT_INTERRUPT_FLAG));
+            EUSCI_A_UART_transmitData(EUSCI_A0_BASE, readIn);
+        }
+
+        // Handle deletions properly
+        // ToDo: boundary checking
+        if (readIn == 127)
+        {
+            UartLib_Object.readBuf = (unsigned char *)UartLib_Object.readBuf - 1;
+            UartLib_Object.readCount--;
+            UartLib_Object.readSize++;
+        }
+        else
+        {
+            *(unsigned char *)UartLib_Object.readBuf = readIn;
+            UartLib_Object.readBuf = (unsigned char *)UartLib_Object.readBuf + 1;
+            UartLib_Object.readCount++;
+            UartLib_Object.readSize--;
+        }
+
+        // If read return mode is newline, finish if a newline was received.
+        if (UartLib_Object.readReturnMode == UART_RETURN_NEWLINE && readIn == '\n')
+        {
+            UartLib_Object.readSize = 0;
         }
     }
+}
 
-    /* Echo character if enabled. */
-    if (UartLib_Object.readEcho)
-    {
-        /* Wait until TX is ready */
-        while (!EUSCI_A_UART_getInterruptStatus(EUSCI_A0_BASE,
-                    EUSCI_A_UART_TRANSMIT_INTERRUPT_FLAG));
-        EUSCI_A_UART_transmitData(EUSCI_A0_BASE, readIn);
-    }
-
-
-    *(unsigned char *)UartLib_Object.readBuf = readIn;
-    UartLib_Object.readBuf = (unsigned char *)UartLib_Object.readBuf + 1;
-    UartLib_Object.readCount++;
-    UartLib_Object.readSize--;
-
-    /* If read return mode is newline, finish if a newline was received. */
-    if (UartLib_Object.readReturnMode == UART_RETURN_NEWLINE && readIn == '\n')
-    {
-        UartLib_Object.readSize = 0;
-    }
+void UartLib_FlushBuff(void)
+{
+    UartLib_Object.readSize = 0;
+    UartLib_Object.writeSize = 0;
 }

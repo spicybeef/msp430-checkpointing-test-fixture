@@ -110,5 +110,6 @@ int UartLib_ReadPolling(void *buffer, size_t size);
 int UartLib_WritePolling(const void *buffer, size_t size);
 inline void UartLib_WriteData(void);
 inline void UartLib_ReadData(void);
+void UartLib_FlushBuff(void);
 
 #endif // UARTLIB_H
