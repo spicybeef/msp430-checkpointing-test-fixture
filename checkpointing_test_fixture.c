@@ -23,6 +23,7 @@
  ******************************************************************************/
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "driverlib.h"
 #include "checkpointing_test_fixture.h"
 #include "console.h"
@@ -33,8 +34,11 @@ static uint8_t dataAESencrypted[AES_MINIMUM_CHUNK_SIZE]; // Encrypted data
 //static uint8_t dataAESdecrypted[AES_MINIMUM_CHUNK_SIZE]; // Decrypted data, not used right now
 static char message[AES_MINIMUM_CHUNK_SIZE] = {0};
 
+#define FAILURE_THRESHOLD (3) // The amount of consecutive failures that will trigger a workload policy update
+#define SUCCESS_THRESHOLD (3) // The amount of consecutive successes that will trigger a workload policy update
+
 // Our total workload size
-#define TOTAL_WORKLOAD_SIZE_BYTES (10 * 1024ULL * 1024ULL)
+#define TOTAL_WORKLOAD_SIZE_BYTES (5 * 1024ULL * 1024ULL)
 
 volatile checkpointingObj_t checkpointingObj;
 
@@ -43,7 +47,8 @@ static arrayOfStrings_t workloadScalingStrings =
     ANSI_COLOR_MAGENTA"No Scaling"ANSI_COLOR_RESET,
     ANSI_COLOR_MAGENTA"Linear Scaling"ANSI_COLOR_RESET,
     ANSI_COLOR_MAGENTA"Random Scaling"ANSI_COLOR_RESET,
-    ANSI_COLOR_MAGENTA"Counter Scaling"ANSI_COLOR_RESET,
+    ANSI_COLOR_MAGENTA"Random Adaptive Scaling"ANSI_COLOR_RESET,
+    ANSI_COLOR_MAGENTA"Linear Adaptive Scaling"ANSI_COLOR_RESET,
 };
 
 static const uint16_t chunkScaleLut[CHUNK_SCALE_MAX] =
@@ -73,39 +78,41 @@ functionResult_e PowerLossEmu_Setup(unsigned int numArgs, int args[])
     unsigned int i;
 
     // Print current settings
-    Console_Print("Old settings:");
-    Console_PrintDivider();
     Checkpointing_CurrentSettings(0, 0);
-    Console_PrintDivider();
 
     // Get new settings
-    checkpointingObj.totalWorkloadSizeBytes = (1024ULL*1024ULL*Console_PromptForInt("Total workload size (MB): "));
+    checkpointingObj.totalWorkloadSizeBytes = (1024ULL * 1024ULL * Console_PromptForInt("Total workload size (MB): "));
     Console_Print("Choose a starting chunk size:");
     for (i = 0; i < CHUNK_SCALE_MAX; i++)
     {
-        Console_PrintNoEol("[%u] - %u ", i, chunkScaleLut[i]);
+        Console_Print("[%u] - %u", i, chunkScaleLut[i]);
     }
     Console_PrintNewLine();
-    checkpointingObj.startingChunkScale = (chunkScale_e)((0x7)&Console_PromptForInt("Starting chunk size: "));
+    checkpointingObj.startingChunkScale = (chunkScale_e)((0x7) & Console_PromptForInt("Starting chunk size: "));
     checkpointingObj.deadTimeMicroseconds = Console_PromptForInt("Enter dead-time (ms): ");
-    Console_Print("Choose a workload policy");
-    Console_Print("[0]-linear, [1]-random, [2]-counter");
-    checkpointingObj.policy = (workloadScalingPolicy_e)(((0x7)&Console_PromptForInt("Enter workload policy: ")) + 1);
+    Console_Print("Choose a workload policy:");
+    for (i = 0; i < WORKLOAD_SCALING_NUM; i++)
+    {
+        Console_Print("[%u] - %s", i, workloadScalingStrings[i]);
+    }
+    Console_PrintNewLine();
+    checkpointingObj.policy = (workloadScalingPolicy_e)((0x7) & Console_PromptForInt("Enter workload policy: "));
 
-    Console_PrintDivider();
-    Console_Print("New settings:");
+    // Print new settings
     Checkpointing_CurrentSettings(0, 0);
-    Console_PrintDivider();
 
     return SUCCESS;
 }
 
 functionResult_e Checkpointing_CurrentSettings(unsigned int numArgs, int args[])
 {
+    Console_Print("Current settings:");
+    Console_PrintDivider();
     Console_Print("Total workload size size: %llu B", checkpointingObj.totalWorkloadSizeBytes);
     Console_Print("Starting chunk size: %u B", chunkScaleLut[(unsigned int)checkpointingObj.startingChunkScale]);
     Console_Print("Dead-time between workloads: %lu ms", checkpointingObj.deadTimeMicroseconds);
     Console_Print("Current workload scaling policy: %s", workloadScalingStrings[(unsigned int)checkpointingObj.policy]);
+    Console_PrintDivider();
 
     return SUCCESS;
 }
@@ -123,11 +130,11 @@ functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[])
     checkpointingObj.bytesProcessed = 0;
     checkpointingObj.workloadFails = 0;
 
+    // Seed random value
+    srand(Utils_GetUptimeMicroseconds());
+
     // Print current settings
-    Console_Print("Current settings:");
-    Console_PrintDivider();
     Checkpointing_CurrentSettings(0, 0);
-    Console_PrintDivider();
 
     // Wait for the first power-loss pulse from the power-loss emulator
     checkpointingObj.powerLoss = false;
@@ -135,13 +142,6 @@ functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[])
     while (!checkpointingObj.powerLoss);
     checkpointingObj.powerLoss = false;
     Console_Print(ANSI_COLOR_GREEN"SYNC!"ANSI_COLOR_RESET);
-
-    // Reset parameters
-    Checkpointing_Init();
-    // Print current settings
-    Console_PrintDivider();
-    Checkpointing_CurrentSettings(0, 0);
-    Console_PrintDivider();
 
     Console_Print("Beginning workload...");
     // Turn off green LED (will be turned on for completion)
@@ -196,7 +196,7 @@ functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[])
     Console_Print("Workload complete!");
     Console_PrintDivider();
     Console_Print("Processed %llu bytes", checkpointingObj.bytesProcessed);
-    Console_Print("Took %f s", (workloadEnd - workloadStart)/1000000.0);
+    Console_Print("Took "ANSI_COLOR_GREEN"%f"ANSI_COLOR_RESET" s", (workloadEnd - workloadStart)/1000000.0);
     Console_PrintDivider();
     // Turn on green LED for completion
     GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN1);
@@ -252,50 +252,124 @@ void Checkpointing_DoAes(void)
     }
     // Signal that work has halted
     Checkpointing_MarkWorkEnd();
-    if (!checkpointingObj.powerLoss)
+
+    // Execute workload policy
+    Checkpointing_ExecutePolicy();
+}
+
+void Checkpointing_ExecutePolicy(void)
+{
+    bool powerLoss = checkpointingObj.powerLoss;
+
+    // Successful work path (no power loss)
+    if (!powerLoss)
     {
         // If we're here, the chunk successfully executed! Add to our total
         // bytes processed accumulator.
         checkpointingObj.bytesProcessed += chunkScaleLut[(unsigned int)checkpointingObj.currentChunkScale];
+
         // Reset any previous failures since we've passed this one
-        if (checkpointingObj.workloadFails)
-        {
-            checkpointingObj.workloadFails = 0;
-        }
+        checkpointingObj.workloadFails = 0;
+        // Increment our successes
+        checkpointingObj.workloadSuccesses++;
+
     }
+    // Failed work path (power loss has occurred)
     else
     {
-        switch (checkpointingObj.policy)
+        // Chunk failed. We won't count this as work performed and we need to
+        // modify our behaviour. Reset any previous successes since we've failed
+        // this one.
+        checkpointingObj.workloadSuccesses = 0;
+        // Increment our failures
+        checkpointingObj.workloadFails++;
+    }
+
+    // Change the scaling based on current policy and variables
+    switch (checkpointingObj.policy)
+    {
+        // Don't do any scaling
+        case WORKLOAD_SCALING_NONE:
         {
-            case WORKLOAD_SCALING_NONE:
-                // We don't touch the chunk size
-                break;
-            case WORKLOAD_SCALING_LINEAR:
-                // Chunk failed. We won't count this as work performed and we need to
-                // modify our behaviour.
-                checkpointingObj.workloadFails++;
-                // We'll allow 3 workload to fail until we change our policy so that
-                // we don't change policies right away
-                if (checkpointingObj.workloadFails >= 3)
+            // We don't touch the chunk size
+            break;
+        }
+
+        // Linearly scale the workload
+        case WORKLOAD_SCALING_LINEAR:
+        {
+            if (checkpointingObj.workloadFails >= FAILURE_THRESHOLD)
+            {
+                checkpointingObj.workloadFails = 0;
+                // Workload scales linearly by 2 every failure. Don't go past min
+                if (checkpointingObj.currentChunkScale != CHUNK_SCALE_16)
                 {
-                    checkpointingObj.workloadFails = 0;
-                    // Workload scales linearly by 2 every failure. Don't go past min
-                    if (checkpointingObj.currentChunkScale != CHUNK_SCALE_16)
-                    {
-                        checkpointingObj.currentChunkScale = (chunkScale_e)((unsigned int)checkpointingObj.currentChunkScale + 1);
-                    }
+                    checkpointingObj.currentChunkScale = (chunkScale_e)((unsigned int)checkpointingObj.currentChunkScale + 1);
                 }
-                break;
-            case WORKLOAD_SCALING_RANDOM:
-            case WORKLOAD_SCALING_COUNTER:
-                break;
-            default:
-                Console_Print(ANSI_COLOR_RED"Invalid policy!"ANSI_COLOR_RESET);
-                break;
+            }
+            // Scaling doesn't modify on successes
+            break;
+        }
+
+        // Randomly scale the workload
+        case WORKLOAD_SCALING_RANDOM:
+        {
+            if (checkpointingObj.workloadFails >= FAILURE_THRESHOLD)
+            {
+                checkpointingObj.workloadFails = 0;
+                // Pick a ramdom scaling value
+                checkpointingObj.currentChunkScale = (chunkScale_e)(rand() % CHUNK_SCALE_MAX);
+            }
+            // Scaling doesn't modify on successes
+            break;
+        }
+
+        // Randomly scale the workload but in both directions
+        case WORKLOAD_SCALING_RANDOM_ADAPTIVE:
+        {
+            if (checkpointingObj.workloadFails >= FAILURE_THRESHOLD)
+            {
+                checkpointingObj.workloadFails = 0;
+                // Pick a ramdom scaling value
+                checkpointingObj.currentChunkScale = (chunkScale_e)(rand() % CHUNK_SCALE_MAX);
+            }
+            else if (checkpointingObj.workloadSuccesses >= SUCCESS_THRESHOLD)
+            {
+                checkpointingObj.workloadSuccesses = 0;
+                // Pick a ramdom scaling value
+                checkpointingObj.currentChunkScale = (chunkScale_e)(rand() % CHUNK_SCALE_MAX);
+            }
+            break;
+        }
+
+        // Linearly scale the workload but in both directions
+        case WORKLOAD_SCALING_LINEAR_ADAPTIVE:
+        {
+            if (checkpointingObj.workloadFails >= FAILURE_THRESHOLD)
+            {
+                checkpointingObj.workloadFails = 0;
+                // Pick a ramdom scaling value
+                checkpointingObj.currentChunkScale = (chunkScale_e)(rand() % CHUNK_SCALE_MAX);
+            }
+            else if (checkpointingObj.workloadSuccesses >= SUCCESS_THRESHOLD)
+            {
+                checkpointingObj.workloadSuccesses = 0;
+                // Workload scales linearly by 2 every failure. Don't go past max;
+                if (checkpointingObj.currentChunkScale != CHUNK_SCALE_1024)
+                {
+                    checkpointingObj.currentChunkScale = (chunkScale_e)((unsigned int)checkpointingObj.currentChunkScale - 1);
+                }
+            }
+            break;
+        }
+
+        default:
+        {
+            Console_Print(ANSI_COLOR_RED"Invalid policy!"ANSI_COLOR_RESET);
+            break;
         }
     }
 
     // Reset any power-loss since we've handled it by now
     checkpointingObj.powerLoss = false;
-
 }

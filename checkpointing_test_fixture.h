@@ -33,7 +33,9 @@ typedef enum
     WORKLOAD_SCALING_NONE = 0,
     WORKLOAD_SCALING_LINEAR = 1,
     WORKLOAD_SCALING_RANDOM = 2,
-    WORKLOAD_SCALING_COUNTER = 3,
+    WORKLOAD_SCALING_RANDOM_ADAPTIVE = 3,
+    WORKLOAD_SCALING_LINEAR_ADAPTIVE = 4,
+    WORKLOAD_SCALING_NUM = 5,
 } workloadScalingPolicy_e;
 
 typedef enum
@@ -68,6 +70,9 @@ typedef struct
     workloadScalingPolicy_e policy;
     // Workload fail count
     uint16_t workloadFails;
+    // Workload pass count
+    uint16_t workloadSuccesses;
+    // Workload passes
 } checkpointingObj_t;
 
 extern volatile checkpointingObj_t checkpointingObj;
@@ -79,5 +84,6 @@ functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[]);
 void Checkpointing_MarkWorkEnd(void);
 void Checkpointing_MarkWorkStart(void);
 void Checkpointing_DoAes(void);
+void Checkpointing_ExecutePolicy(void);
 
 #endif // CHECKPOINTING_TEST_FIXTURE_H
