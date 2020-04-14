@@ -34,8 +34,8 @@ static uint8_t dataAESencrypted[AES_MINIMUM_CHUNK_SIZE]; // Encrypted data
 //static uint8_t dataAESdecrypted[AES_MINIMUM_CHUNK_SIZE]; // Decrypted data, not used right now
 static char message[AES_MINIMUM_CHUNK_SIZE] = {0};
 
-#define FAILURE_THRESHOLD (3) // The amount of consecutive failures that will trigger a workload policy update
-#define SUCCESS_THRESHOLD (3) // The amount of consecutive successes that will trigger a workload policy update
+#define DEFAULT_FAILURE_THRESHOLD (2) // The amount of consecutive failures that will trigger a workload policy update
+#define DEFAULT_SUCCESS_THRESHOLD (2) // The amount of consecutive successes that will trigger a workload policy update
 
 // Our total workload size
 #define TOTAL_WORKLOAD_SIZE_BYTES (5 * 1024ULL * 1024ULL)
@@ -68,8 +68,10 @@ void Checkpointing_Init(void)
     checkpointingObj.powerLoss = false;
     checkpointingObj.currentlyWorking = false;
     checkpointingObj.startingChunkScale = CHUNK_SCALE_1024;
-    checkpointingObj.deadTimeMicroseconds = 500;
+    checkpointingObj.deadTimeMicroseconds = 1000;
     checkpointingObj.totalWorkloadSizeBytes = TOTAL_WORKLOAD_SIZE_BYTES;
+    checkpointingObj.successThresh = DEFAULT_SUCCESS_THRESHOLD;
+    checkpointingObj.failThresh = DEFAULT_FAILURE_THRESHOLD;
     checkpointingObj.policy = WORKLOAD_SCALING_LINEAR;
 };
 
@@ -85,15 +87,17 @@ functionResult_e PowerLossEmu_Setup(unsigned int numArgs, int args[])
     Console_Print("Choose a starting chunk size:");
     for (i = 0; i < CHUNK_SCALE_MAX; i++)
     {
-        Console_Print("[%u] - %u", i, chunkScaleLut[i]);
+        Console_Print(" [%u] - %u", i, chunkScaleLut[i]);
     }
     Console_PrintNewLine();
     checkpointingObj.startingChunkScale = (chunkScale_e)((0x7) & Console_PromptForInt("Starting chunk size: "));
     checkpointingObj.deadTimeMicroseconds = Console_PromptForInt("Enter dead-time (ms): ");
+    checkpointingObj.successThresh = Console_PromptForInt("Enter success threshold: ");
+    checkpointingObj.failThresh = Console_PromptForInt("Enter fail threshold: ");
     Console_Print("Choose a workload policy:");
     for (i = 0; i < WORKLOAD_SCALING_NUM; i++)
     {
-        Console_Print("[%u] - %s", i, workloadScalingStrings[i]);
+        Console_Print(" [%u] - %s", i, workloadScalingStrings[i]);
     }
     Console_PrintNewLine();
     checkpointingObj.policy = (workloadScalingPolicy_e)((0x7) & Console_PromptForInt("Enter workload policy: "));
@@ -111,6 +115,8 @@ functionResult_e Checkpointing_CurrentSettings(unsigned int numArgs, int args[])
     Console_Print("Total workload size size: %llu B", checkpointingObj.totalWorkloadSizeBytes);
     Console_Print("Starting chunk size: %u B", chunkScaleLut[(unsigned int)checkpointingObj.startingChunkScale]);
     Console_Print("Dead-time between workloads: %lu ms", checkpointingObj.deadTimeMicroseconds);
+    Console_Print("Success policy change threshold: %u", checkpointingObj.successThresh);
+    Console_Print("Failure policy change threshold: %u", checkpointingObj.failThresh);
     Console_Print("Current workload scaling policy: %s", workloadScalingStrings[(unsigned int)checkpointingObj.policy]);
     Console_PrintDivider();
 
@@ -179,7 +185,7 @@ functionResult_e Checkpointing_WorkloadLoop(unsigned int numArgs, int args[])
             fflush(stdout);
         }
 
-        if (checkpointingObj.bytesProcessed >= TOTAL_WORKLOAD_SIZE_BYTES)
+        if (checkpointingObj.bytesProcessed >= checkpointingObj.totalWorkloadSizeBytes)
         {
             // We're done! Leave the workload loop
             break;
@@ -298,7 +304,7 @@ void Checkpointing_ExecutePolicy(void)
         // Linearly scale the workload
         case WORKLOAD_SCALING_LINEAR:
         {
-            if (checkpointingObj.workloadFails >= FAILURE_THRESHOLD)
+            if (checkpointingObj.workloadFails >= checkpointingObj.failThresh)
             {
                 checkpointingObj.workloadFails = 0;
                 // Workload scales linearly by 2 every failure. Don't go past min
@@ -314,7 +320,7 @@ void Checkpointing_ExecutePolicy(void)
         // Randomly scale the workload
         case WORKLOAD_SCALING_RANDOM:
         {
-            if (checkpointingObj.workloadFails >= FAILURE_THRESHOLD)
+            if (checkpointingObj.workloadFails >= checkpointingObj.failThresh)
             {
                 checkpointingObj.workloadFails = 0;
                 // Pick a ramdom scaling value
@@ -327,13 +333,13 @@ void Checkpointing_ExecutePolicy(void)
         // Randomly scale the workload but in both directions
         case WORKLOAD_SCALING_RANDOM_ADAPTIVE:
         {
-            if (checkpointingObj.workloadFails >= FAILURE_THRESHOLD)
+            if (checkpointingObj.workloadFails >= checkpointingObj.failThresh)
             {
                 checkpointingObj.workloadFails = 0;
                 // Pick a ramdom scaling value
                 checkpointingObj.currentChunkScale = (chunkScale_e)(rand() % CHUNK_SCALE_MAX);
             }
-            else if (checkpointingObj.workloadSuccesses >= SUCCESS_THRESHOLD)
+            else if (checkpointingObj.workloadSuccesses >= checkpointingObj.successThresh)
             {
                 checkpointingObj.workloadSuccesses = 0;
                 // Pick a ramdom scaling value
@@ -345,13 +351,13 @@ void Checkpointing_ExecutePolicy(void)
         // Linearly scale the workload but in both directions
         case WORKLOAD_SCALING_LINEAR_ADAPTIVE:
         {
-            if (checkpointingObj.workloadFails >= FAILURE_THRESHOLD)
+            if (checkpointingObj.workloadFails >= checkpointingObj.failThresh)
             {
                 checkpointingObj.workloadFails = 0;
                 // Pick a ramdom scaling value
                 checkpointingObj.currentChunkScale = (chunkScale_e)(rand() % CHUNK_SCALE_MAX);
             }
-            else if (checkpointingObj.workloadSuccesses >= SUCCESS_THRESHOLD)
+            else if (checkpointingObj.workloadSuccesses >= checkpointingObj.successThresh)
             {
                 checkpointingObj.workloadSuccesses = 0;
                 // Workload scales linearly by 2 every failure. Don't go past max;

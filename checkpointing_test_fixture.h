@@ -66,6 +66,10 @@ typedef struct
     uint32_t deadTimeMicroseconds;
     // Total workload size
     uint64_t totalWorkloadSizeBytes;
+    // Success policy threshold
+    uint16_t successThresh;
+    // Fail policy threshold
+    uint16_t failThresh;
     // Workload scaling policy
     workloadScalingPolicy_e policy;
     // Workload fail count
