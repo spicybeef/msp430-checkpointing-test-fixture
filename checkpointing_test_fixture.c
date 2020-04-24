@@ -91,7 +91,7 @@ functionResult_e PowerLossEmu_Setup(unsigned int numArgs, int args[])
     }
     Console_PrintNewLine();
     checkpointingObj.startingChunkScale = (chunkScale_e)((0x7) & Console_PromptForInt("Starting chunk size: "));
-    checkpointingObj.deadTimeMicroseconds = Console_PromptForInt("Enter dead-time (ms): ");
+    checkpointingObj.deadTimeMicroseconds = Console_PromptForInt("Enter dead-time (us): ");
     checkpointingObj.successThresh = Console_PromptForInt("Enter success threshold: ");
     checkpointingObj.failThresh = Console_PromptForInt("Enter fail threshold: ");
     Console_Print("Choose a workload policy:");
@@ -114,7 +114,7 @@ functionResult_e Checkpointing_CurrentSettings(unsigned int numArgs, int args[])
     Console_PrintDivider();
     Console_Print("Total workload size size: %llu B", checkpointingObj.totalWorkloadSizeBytes);
     Console_Print("Starting chunk size: %u B", chunkScaleLut[(unsigned int)checkpointingObj.startingChunkScale]);
-    Console_Print("Dead-time between workloads: %lu ms", checkpointingObj.deadTimeMicroseconds);
+    Console_Print("Dead-time between workloads: %lu us", checkpointingObj.deadTimeMicroseconds);
     Console_Print("Success policy change threshold: %u", checkpointingObj.successThresh);
     Console_Print("Failure policy change threshold: %u", checkpointingObj.failThresh);
     Console_Print("Current workload scaling policy: %s", workloadScalingStrings[(unsigned int)checkpointingObj.policy]);
